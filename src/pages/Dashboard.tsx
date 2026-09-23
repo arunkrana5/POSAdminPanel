@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Box, Container, Typography, Chip } from '@mui/material';
+import { Box, Container, Typography, Chip, Paper, Button, Stack } from '@mui/material';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
+import AndroidIcon from '@mui/icons-material/Android';
+import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import GetAppIcon from '@mui/icons-material/GetApp';
 import { HeaderNav } from '../components/HeaderNav';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
@@ -84,6 +87,85 @@ export const Dashboard: React.FC = () => {
         />
 
         <StatCardGrid items={statsItems} />
+
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2.5,
+            mb: 3,
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
+            color: '#FFFFFF',
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            alignItems: { xs: 'flex-start', md: 'center' },
+            justifyContent: 'space-between',
+            gap: 2,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: '10px',
+                backgroundColor: '#10B981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <AndroidIcon sx={{ fontSize: 28, color: '#FFFFFF' }} />
+            </Box>
+            <Box>
+              <Typography variant="subtitle1" fontWeight="800">
+                VillageShop Android Mobile App (.apk)
+              </Typography>
+              <Typography variant="body2" color="#94A3B8">
+                Direct Cloud APK download & WhatsApp sharing for store staff & field operators
+              </Typography>
+            </Box>
+          </Box>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', md: 'auto' } }}>
+            <Button
+              variant="contained"
+              startIcon={<WhatsAppIcon />}
+              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                '📱 *VillageShop POS App Download*\n\nDownload the latest VillageShop Android App to manage store billing, inventory, and Udhaar ledgers:\n\nhttps://villageshop-api.onrender.com/VillageShop.apk'
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{
+                backgroundColor: '#25D366',
+                '&:hover': { backgroundColor: '#1EBE5D' },
+                fontWeight: 700,
+                borderRadius: '8px',
+                textTransform: 'none',
+              }}
+            >
+              Share App on WhatsApp
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<GetAppIcon />}
+              href="https://villageshop-api.onrender.com/VillageShop.apk"
+              target="_blank"
+              download="VillageShop.apk"
+              sx={{
+                backgroundColor: '#2563EB',
+                '&:hover': { backgroundColor: '#1D4ED8' },
+                fontWeight: 700,
+                borderRadius: '8px',
+                textTransform: 'none',
+              }}
+            >
+              Download APK (17.5 MB)
+            </Button>
+          </Stack>
+        </Paper>
 
         <Typography variant="h6" fontWeight="800" color="#0F172A" mb={1.5}>
           Recent Billing Transactions & Invoices Stream
