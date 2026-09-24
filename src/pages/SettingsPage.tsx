@@ -99,7 +99,7 @@ export const SettingsPage: React.FC = () => {
   const [primaryColorHex, setPrimaryColorHex] = useState('#0F172A');
   const [secondaryColorHex, setSecondaryColorHex] = useState('#D97706');
   const [accentColorHex, setAccentColorHex] = useState('#10B981');
-  const [appTitle, setAppTitle] = useState('SHARMA POS');
+  const [appTitle, setAppTitle] = useState('VILLAGE SHOP POS');
   const [tagline, setTagline] = useState('Digital Store POS System');
   const [currencySymbol, setCurrencySymbol] = useState('₹');
 

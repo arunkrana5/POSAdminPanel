@@ -112,10 +112,10 @@ export const HeaderNav: React.FC = () => {
           >
             <BusinessIcon sx={{ fontSize: 15, color: '#3B82F6' }} />
             <Typography variant="body2" fontWeight="700" sx={{ color: '#FFFFFF', fontSize: '0.775rem' }}>
-              {user?.tenantName || 'Sharma General Store'}
+              {user?.tenantName || 'Client Store'}
             </Typography>
             <Chip
-              label={user?.tenantCode || 'DEMO_SHOP'}
+              label={user?.tenantCode || 'TENANT'}
               size="small"
               sx={{ height: 16, fontSize: '0.6rem', bgcolor: '#1E3A8A', color: '#93C5FD', fontWeight: 800 }}
             />
