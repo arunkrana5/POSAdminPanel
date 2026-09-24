@@ -12,7 +12,7 @@ export interface FieldOption {
 export interface FormFieldDef {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'select' | 'switch' | 'textarea';
+  type: 'text' | 'number' | 'select' | 'switch' | 'textarea' | 'date';
   placeholder?: string;
   options?: FieldOption[];
   required?: boolean;
@@ -124,7 +124,8 @@ export const GenericFormModal: React.FC<GenericFormModalProps> = ({
                   fullWidth
                   multiline={field.type === 'textarea'}
                   rows={field.type === 'textarea' ? 3 : 1}
-                  type={field.type === 'number' ? 'number' : 'text'}
+                  type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                  InputLabelProps={field.type === 'date' ? { shrink: true } : undefined}
                   label={field.label}
                   placeholder={field.placeholder}
                   value={val}
