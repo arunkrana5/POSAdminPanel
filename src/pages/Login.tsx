@@ -49,6 +49,53 @@ export const Login: React.FC = () => {
 
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+          <Box sx={{ mb: 2, p: 1.5, bgcolor: '#EFF6FF', borderRadius: 2, border: '1px solid #BFDBFE' }}>
+            <Typography variant="caption" display="block" color="#1E40AF" fontWeight="700" mb={1}>
+              ⚡ Quick Credentials Auto-Fill
+            </Typography>
+            <Box display="flex" gap={1} flexWrap="wrap">
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  setTenantCode('SUPERADMIN');
+                  setUsername('superadmin');
+                  setPassword('admin123');
+                }}
+                sx={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'none' }}
+              >
+                SuperAdmin
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                color="primary"
+                onClick={() => {
+                  setTenantCode('SHARMA_SHOP');
+                  setUsername('sharma_admin');
+                  setPassword('admin123');
+                }}
+                sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
+              >
+                Sharma Shop
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                color="primary"
+                onClick={() => {
+                  setTenantCode('GUPTA_KIRANA');
+                  setUsername('gupta_admin');
+                  setPassword('admin123');
+                }}
+                sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
+              >
+                Gupta Kirana
+              </Button>
+            </Box>
+          </Box>
+
           <form onSubmit={handleLogin}>
             <TextField
               fullWidth
@@ -78,8 +125,8 @@ export const Login: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            <Button fullWidth type="submit" variant="contained" size="large" sx={{ mt: 3 }}>
-              Sign In
+            <Button fullWidth type="submit" variant="contained" size="large" sx={{ mt: 3, fontWeight: 700 }}>
+              Sign In to SaaS Admin
             </Button>
           </form>
         </CardContent>
