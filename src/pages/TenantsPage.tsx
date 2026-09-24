@@ -14,6 +14,7 @@ import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface TenantRow {
   tenantId: string;
+  id?: number;
   name: string;
   code: string;
   plan: string;
@@ -150,57 +151,49 @@ export const TenantsPage: React.FC = () => {
     setOpenModal(true);
   };
 
-  const updateTenantsOnBackend = async (newList: TenantRow[]) => {
+  const handleDelete = async (tenant: TenantRow) => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/settings/mobile-config`, { headers: getAuthHeaders() });
-      const data = await res.json();
-      let currentConfig: any = {};
-      if (data && data.additionalMessage) {
-        currentConfig = JSON.parse(data.additionalMessage);
-      }
-      currentConfig.tenants = newList;
-      await fetch(`${getApiBaseUrl()}/settings/mobile-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(currentConfig),
+      const numericId = tenant.id || parseInt(tenant.tenantId.replace(/\D/g, ''), 10) || 1;
+      await fetch(`${getApiBaseUrl()}/settings/tenants/${numericId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
       });
-    } catch (_) {}
-  };
-
-  const handleDelete = (tenant: TenantRow) => {
-    const updated = tenants.filter((t) => t.tenantId !== tenant.tenantId);
-    setTenants(updated);
-    updateTenantsOnBackend(updated);
-    setAlertMsg(`Tenant ${tenant.name} removed successfully.`);
-  };
-
-  const handleSaveModal = (formValues: Record<string, any>) => {
-    let updated: TenantRow[];
-    if (editingTenant) {
-      updated = tenants.map((t) =>
-        t.tenantId === editingTenant.tenantId
-          ? { ...t, ...formValues }
-          : t
-      );
-      setAlertMsg(`Updated tenant ${formValues.name} successfully.`);
-    } else {
-      const newT: TenantRow = {
-        tenantId: `TNT-00${tenants.length + 1}`,
-        name: formValues.name,
-        code: formValues.code,
-        plan: formValues.plan,
-        activeStatus: formValues.activeStatus,
-        ownerName: formValues.ownerName,
-        ownerPhone: formValues.ownerPhone,
-        joinedDate: 'Today',
-        storesCount: 1,
-      };
-      updated = [newT, ...tenants];
-      setAlertMsg(`Added new client store tenant: ${formValues.name}`);
+      setAlertMsg(`Tenant ${tenant.name} removed successfully.`);
+      fetchTenants();
+    } catch (err: any) {
+      setAlertMsg(`Error deleting tenant: ${err.message}`);
     }
-    setTenants(updated);
-    updateTenantsOnBackend(updated);
-    setOpenModal(false);
+  };
+
+  const handleSaveModal = async (formValues: Record<string, any>) => {
+    try {
+      if (editingTenant) {
+        const numericId = editingTenant.id || parseInt(editingTenant.tenantId.replace(/\D/g, ''), 10) || 1;
+        const res = await fetch(`${getApiBaseUrl()}/settings/tenants/${numericId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(formValues),
+        });
+        const data = await res.json();
+        setAlertMsg(data.message || `Updated tenant ${formValues.name} successfully.`);
+      } else {
+        const res = await fetch(`${getApiBaseUrl()}/settings/tenants`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(formValues),
+        });
+        const data = await res.json();
+        if (data && data.status) {
+          setAlertMsg(data.message || `Added new client store tenant: ${formValues.name}`);
+        } else {
+          setAlertMsg(`Error: ${data.message || 'Could not register tenant'}`);
+        }
+      }
+      fetchTenants();
+      setOpenModal(false);
+    } catch (err: any) {
+      setAlertMsg(`Error saving tenant: ${err.message}`);
+    }
   };
 
   return (
