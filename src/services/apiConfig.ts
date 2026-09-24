@@ -4,9 +4,6 @@ export const getApiBaseUrl = (): string => {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:5000/api';
   }
-  if (window.location.origin.includes('onrender.com')) {
-    return '/api';
-  }
   return 'https://villageshop-api.onrender.com/api';
 };
 
