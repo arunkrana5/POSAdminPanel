@@ -69,18 +69,18 @@ export const SettingsPage: React.FC = () => {
           const parsed = JSON.parse(data.additionalMessage);
           if (Array.isArray(parsed) && parsed.length > 0) {
             const mapped: TenantClient[] = parsed.map((t: any, idx: number) => {
-              const numId = t.id || parseInt(t.tenantId?.replace(/\D/g, ''), 10) || (idx + 1);
+              const numId = t.id || t.Id || parseInt(t.tenantId?.replace(/\D/g, '') || t.TenantId?.replace(/\D/g, ''), 10) || (idx + 1);
               return {
                 id: numId,
-                tenantId: t.tenantId || `TNT-${numId}`,
-                name: t.name || t.tenantName || 'Store Client',
-                code: t.code || t.tenantCode || `TNT_${numId}`,
-                plan: t.plan || 'Enterprise SaaS',
-                activeStatus: t.activeStatus || 'ACTIVE',
-                ownerName: t.ownerName || 'Store Owner',
-                ownerPhone: t.ownerPhone || '+91 98765 43210',
-                joinedDate: t.joinedDate || 'Recently',
-                storesCount: t.storesCount || 1,
+                tenantId: t.tenantId || t.TenantId || `TNT-${numId}`,
+                name: t.name || t.Name || t.tenantName || 'Store Client',
+                code: t.code || t.Code || t.tenantCode || `TNT_${numId}`,
+                plan: t.plan || t.Plan || 'Enterprise SaaS',
+                activeStatus: t.activeStatus || t.ActiveStatus || 'ACTIVE',
+                ownerName: t.ownerName || t.OwnerName || 'Store Owner',
+                ownerPhone: t.ownerPhone || t.OwnerPhone || '+91 98765 43210',
+                joinedDate: t.joinedDate || t.JoinedDate || 'Recently',
+                storesCount: t.storesCount || t.StoresCount || 1,
               };
             });
             setClientList(mapped);
