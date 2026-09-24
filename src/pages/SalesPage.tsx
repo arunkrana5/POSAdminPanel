@@ -43,7 +43,7 @@ export const SalesPage: React.FC = () => {
       const res = await fetch(`${getApiBaseUrl()}/sales`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setSales(data);
         }
       }
