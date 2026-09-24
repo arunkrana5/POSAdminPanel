@@ -5,6 +5,7 @@ interface AuthContextType {
   user: TokenResponse | null;
   login: (data: TokenResponse) => void;
   logout: () => void;
+  switchTenant: (tenantCode: string, tenantName: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,13 +31,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user_details', JSON.stringify(data));
   };
 
+  const switchTenant = (tenantCode: string, tenantName: string) => {
+    if (user) {
+      const updatedUser = { ...user, tenantCode, tenantName };
+      setUser(updatedUser);
+      localStorage.setItem('user_details', JSON.stringify(updatedUser));
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.clear();
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, switchTenant }}>
       {children}
     </AuthContext.Provider>
   );

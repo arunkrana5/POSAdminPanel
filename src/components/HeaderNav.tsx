@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -34,15 +34,36 @@ import BusinessIcon from '@mui/icons-material/Business';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export const HeaderNav: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, switchTenant } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const [anchorElUser, setAnchorElUser] = useState<null | HTMLElement>(null);
   const [anchorElTenant, setAnchorElTenant] = useState<null | HTMLElement>(null);
   const [anchorElNotif, setAnchorElNotif] = useState<null | HTMLElement>(null);
+  const [tenantsList, setTenantsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchTenants();
+  }, []);
+
+  const fetchTenants = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/settings/tenants?_t=${Date.now()}`, { headers: getAuthHeaders() });
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data && data.status && data.additionalMessage) {
+          const parsed = JSON.parse(data.additionalMessage);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTenantsList(parsed);
+          }
+        }
+      }
+    } catch (_) {}
+  };
 
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon sx={{ fontSize: 15 }} /> },
@@ -105,15 +126,58 @@ export const HeaderNav: React.FC = () => {
             anchorEl={anchorElTenant}
             open={Boolean(anchorElTenant)}
             onClose={() => setAnchorElTenant(null)}
-            PaperProps={{ sx: { minWidth: 240, mt: 1, bgcolor: '#1E293B', color: '#FFFFFF' } }}
+            PaperProps={{ sx: { minWidth: 260, mt: 1, bgcolor: '#1E293B', color: '#FFFFFF' } }}
           >
-            <Typography variant="caption" sx={{ px: 2, py: 0.5, color: '#94A3B8', fontWeight: 700 }}>
-              Active Tenant Context
+            <Typography variant="caption" sx={{ px: 2, py: 0.8, color: '#94A3B8', fontWeight: 700, display: 'block' }}>
+              Select Active Client Tenant ({tenantsList.length || 7} Registered)
             </Typography>
-            <MenuItem onClick={() => setAnchorElTenant(null)} selected>
-              <CheckCircleIcon fontSize="small" sx={{ mr: 1, color: '#10B981' }} />
-              {user?.tenantName} ({user?.tenantCode})
-            </MenuItem>
+            <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }} />
+            {tenantsList.length > 0 ? (
+              tenantsList.map((t) => {
+                const tCode = t.code || t.Code || t.tenantCode;
+                const tName = t.name || t.Name || t.tenantName;
+                const isSelected = user?.tenantCode === tCode;
+                return (
+                  <MenuItem
+                    key={t.id || t.Id || tCode}
+                    selected={isSelected}
+                    onClick={() => {
+                      switchTenant(tCode, tName);
+                      setAnchorElTenant(null);
+                    }}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      py: 1,
+                      px: 2,
+                      '&.Mui-selected': { bgcolor: 'rgba(37, 99, 235, 0.3)' }
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1}>
+                      {isSelected ? (
+                        <CheckCircleIcon fontSize="small" sx={{ color: '#10B981' }} />
+                      ) : (
+                        <BusinessIcon fontSize="small" sx={{ color: '#94A3B8' }} />
+                      )}
+                      <Typography variant="body2" fontWeight={isSelected ? '800' : '500'}>
+                        {tName}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label={tCode}
+                      size="small"
+                      sx={{ height: 16, fontSize: '0.6rem', bgcolor: '#0F172A', color: '#93C5FD', fontWeight: 800 }}
+                    />
+                  </MenuItem>
+                );
+              })
+            ) : (
+              <MenuItem onClick={() => setAnchorElTenant(null)} selected>
+                <CheckCircleIcon fontSize="small" sx={{ mr: 1, color: '#10B981' }} />
+                {user?.tenantName} ({user?.tenantCode})
+              </MenuItem>
+            )}
           </Menu>
 
           <Chip
