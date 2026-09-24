@@ -6,7 +6,7 @@ import { PostResponse, TokenResponse } from '../types/api';
 import { useNavigate } from 'react-router-dom';
 
 export const Login: React.FC = () => {
-  const [tenantCode, setTenantCode] = useState('DEMO_SHOP');
+  const [tenantCode, setTenantCode] = useState('SHARMA_SHOP');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [error, setError] = useState('');
