@@ -73,7 +73,7 @@ export const Login: React.FC = () => {
                 color="primary"
                 onClick={() => {
                   setTenantCode('SHARMA_SHOP');
-                  setUsername('sharma_admin');
+                  setUsername('admin');
                   setPassword('admin123');
                 }}
                 sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
