@@ -48,12 +48,24 @@ export const TenantsPage: React.FC = () => {
   const fetchTenants = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/settings/tenants`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/settings/tenants?_t=${Date.now()}`, { headers: getAuthHeaders() });
       const data = await res.json();
       if (data && data.status && data.additionalMessage) {
         const parsed = JSON.parse(data.additionalMessage);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setTenants(parsed);
+          const mapped: TenantRow[] = parsed.map((t: any, idx: number) => ({
+            id: t.id || t.Id || idx + 1,
+            tenantId: t.tenantId || t.TenantId || `TNT-${t.id || t.Id || idx + 1}`,
+            name: t.name || t.Name || t.tenantName || 'Store Client',
+            code: t.code || t.Code || t.tenantCode || `TNT_${t.id || idx + 1}`,
+            plan: t.plan || t.Plan || 'Enterprise SaaS',
+            activeStatus: t.activeStatus || t.ActiveStatus || 'ACTIVE',
+            ownerName: t.ownerName || t.OwnerName || 'Store Owner',
+            ownerPhone: t.ownerPhone || t.OwnerPhone || '+91 98765 43210',
+            joinedDate: t.joinedDate || t.JoinedDate || 'Recently',
+            storesCount: t.storesCount || t.StoresCount || 1,
+          }));
+          setTenants(mapped);
         }
       }
     } catch (_) {}

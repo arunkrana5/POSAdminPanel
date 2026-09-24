@@ -62,7 +62,7 @@ export const SettingsPage: React.FC = () => {
 
   const fetchAllTenants = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/settings/tenants`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/settings/tenants?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
         if (data && data.status && data.additionalMessage) {
