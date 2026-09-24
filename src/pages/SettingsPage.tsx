@@ -49,12 +49,46 @@ export const SettingsPage: React.FC = () => {
   const [selectedTenantId, setSelectedTenantId] = useState<number>(1);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
 
-  const clientList: TenantClient[] = [
+  const [clientList, setClientList] = useState<TenantClient[]>([
     { id: 1, tenantId: 'TNT-001', name: 'Sharma General Store', code: 'SHARMA_SHOP', plan: 'Enterprise SaaS', activeStatus: 'ACTIVE', ownerName: 'Ram Sharma', ownerPhone: '+91 98765 43210', joinedDate: '15 Jan 2026', storesCount: 3 },
     { id: 2, tenantId: 'TNT-002', name: 'Gupta Kirana & Provisions', code: 'GUPTA_KIRANA', plan: 'Pro Business', activeStatus: 'ACTIVE', ownerName: 'Suresh Gupta', ownerPhone: '+91 98123 45678', joinedDate: '02 Feb 2026', storesCount: 1 },
     { id: 3, tenantId: 'TNT-003', name: 'Verma Traders & Seeds', code: 'VERMA_TRADERS', plan: 'Basic Starter', activeStatus: 'TRIAL', ownerName: 'Vikas Verma', ownerPhone: '+91 97654 32109', joinedDate: '20 Aug 2026', storesCount: 1 },
     { id: 4, tenantId: 'TNT-004', name: 'Kisan Agro Store', code: 'KISAN_AGRO', plan: 'Pro Business', activeStatus: 'SUSPENDED', ownerName: 'Rajesh Kumar', ownerPhone: '+91 99887 76655', joinedDate: '10 Mar 2026', storesCount: 2 }
-  ];
+  ]);
+
+  useEffect(() => {
+    fetchAllTenants();
+  }, []);
+
+  const fetchAllTenants = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/settings/tenants`, { headers: getAuthHeaders() });
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data && data.status && data.additionalMessage) {
+          const parsed = JSON.parse(data.additionalMessage);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const mapped: TenantClient[] = parsed.map((t: any, idx: number) => {
+              const numId = t.id || parseInt(t.tenantId?.replace(/\D/g, ''), 10) || (idx + 1);
+              return {
+                id: numId,
+                tenantId: t.tenantId || `TNT-${numId}`,
+                name: t.name || t.tenantName || 'Store Client',
+                code: t.code || t.tenantCode || `TNT_${numId}`,
+                plan: t.plan || 'Enterprise SaaS',
+                activeStatus: t.activeStatus || 'ACTIVE',
+                ownerName: t.ownerName || 'Store Owner',
+                ownerPhone: t.ownerPhone || '+91 98765 43210',
+                joinedDate: t.joinedDate || 'Recently',
+                storesCount: t.storesCount || 1,
+              };
+            });
+            setClientList(mapped);
+          }
+        }
+      }
+    } catch (_) {}
+  };
 
   const currentClient = clientList.find(c => c.id === selectedTenantId) || clientList[0];
 
