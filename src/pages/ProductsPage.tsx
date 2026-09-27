@@ -29,6 +29,7 @@ export interface ProductRow {
   rackNumber?: string;
   expiryDate?: string;
   hsnCode?: string;
+  imageUrl?: string;
   status?: string;
 }
 
@@ -94,19 +95,28 @@ export const ProductsPage: React.FC = () => {
   const columns: ColumnDef<ProductRow>[] = [
     {
       key: 'name',
-      header: 'Product & Barcode',
+      header: 'Product Logo & Name',
       render: (r) => (
-        <Box>
-          <Typography variant="subtitle2" fontWeight="700" color="#0F172A">
-            {r.name}
-          </Typography>
-          <Box display="flex" gap={1} alignItems="center">
-            <Typography variant="caption" color="text.secondary" fontFamily="monospace">
-              Code: {r.productCode || '-'}
+        <Box display="flex" alignItems="center" gap={1.5}>
+          {r.imageUrl ? (
+            <Box component="img" src={r.imageUrl} alt={r.name} sx={{ width: 40, height: 40, borderRadius: '8px', objectFit: 'cover', border: '1px solid #CBD5E1' }} />
+          ) : (
+            <Box sx={{ width: 40, height: 40, borderRadius: '8px', bgcolor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #BFDBFE' }}>
+              <Inventory2Icon color="primary" fontSize="small" />
+            </Box>
+          )}
+          <Box>
+            <Typography variant="subtitle2" fontWeight="700" color="#0F172A">
+              {r.name}
             </Typography>
-            {r.barcode && (
-              <Chip label={`BC: ${r.barcode}`} size="small" sx={{ height: 16, fontSize: '0.625rem', bgcolor: '#F1F5F9' }} />
-            )}
+            <Box display="flex" gap={1} alignItems="center">
+              <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                Code: {r.productCode || '-'}
+              </Typography>
+              {r.barcode && (
+                <Chip label={`BC: ${r.barcode}`} size="small" sx={{ height: 16, fontSize: '0.625rem', bgcolor: '#F1F5F9', fontWeight: 800 }} />
+              )}
+            </Box>
           </Box>
         </Box>
       ),
@@ -206,6 +216,7 @@ export const ProductsPage: React.FC = () => {
   const modalFields: FormFieldDef[] = [
     { name: 'name', label: 'Product Name (सामान का नाम)', type: 'text', required: true, placeholder: 'e.g. Fortune Rice Bran Oil 1L' },
     { name: 'productCode', label: 'Product Code / SKU', type: 'text', placeholder: 'e.g. PRD-101 (Auto generated if blank)' },
+    { name: 'imageUrl', label: 'Product Image / Logo URL (फोटो URL)', type: 'text', placeholder: 'https://images.unsplash.com/photo-1574316071802-0d684efa7bf5' },
     { name: 'barcode', label: 'Barcode / EAN', type: 'text', placeholder: 'e.g. 8901030012345' },
     { name: 'category', label: 'Category', type: 'select', options: [
       { label: 'Groceries (किराना)', value: 'Groceries' },
