@@ -9,9 +9,13 @@ export const getApiBaseUrl = (): string => {
 
 export const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('accessToken') || '';
+  const tenantId = localStorage.getItem('tenant_id') || localStorage.getItem('tenantId') || '';
+  const tenantCode = localStorage.getItem('tenant_code') || localStorage.getItem('tenantCode') || '';
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(tenantId ? { 'X-Tenant-Id': tenantId } : {}),
+    ...(tenantCode ? { 'X-Tenant-Code': tenantCode } : {}),
   };
 };
 
