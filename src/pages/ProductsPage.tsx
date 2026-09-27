@@ -277,6 +277,7 @@ export const ProductsPage: React.FC = () => {
       brand: formValues.brand || undefined,
       unit: formValues.unit,
       barcode: formValues.barcode || undefined,
+      imageUrl: formValues.imageUrl || undefined,
       purchasePrice: parseFloat(formValues.purchasePrice) || 0,
       sellingPrice: parseFloat(formValues.sellingPrice) || 0,
       mrp: formValues.mrp ? parseFloat(formValues.mrp) : (parseFloat(formValues.sellingPrice) || 0),
