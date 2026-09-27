@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Container, Typography, Chip, Paper, Button, Stack } from '@mui/material';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -14,6 +14,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '../services/apiClient';
 
 interface TransactionRow {
   id: string;
@@ -29,32 +30,87 @@ interface TransactionRow {
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const recentTransactions: TransactionRow[] = [
-    { id: 'INV-20260911-001', customer: 'Ramesh Kumar', mobile: '9876543210', village: 'Rampur', amount: '₹ 420.00', mode: 'Cash', status: 'COMPLETED', date: '2026-09-11 11:20 AM' },
-    { id: 'INV-20260911-002', customer: 'Suresh Patel', mobile: '9876543211', village: 'Rampur', amount: '₹ 1,250.00', mode: 'Udhaar', status: 'PENDING_CREDIT', date: '2026-09-11 10:45 AM' },
-    { id: 'INV-20260911-003', customer: 'Anita Devi', mobile: '9876543212', village: 'Meerut', amount: '₹ 380.00', mode: 'UPI', status: 'COMPLETED', date: '2026-09-11 09:15 AM' },
-    { id: 'INV-20260911-004', customer: 'Vikas Verma', mobile: '9988776655', village: 'Kisan Nagar', amount: '₹ 880.00', mode: 'Udhaar', status: 'PENDING_CREDIT', date: '2026-09-10 04:30 PM' },
-    { id: 'INV-20260911-005', customer: 'Walk-in Customer', mobile: 'N/A', village: 'Local', amount: '₹ 150.00', mode: 'Cash', status: 'COMPLETED', date: '2026-09-10 02:10 PM' },
-  ];
+  const [totalSales, setTotalSales] = useState(0);
+  const [totalUdhaar, setTotalUdhaar] = useState(0);
+  const [productCount, setProductCount] = useState(0);
+  const [customerCount, setCustomerCount] = useState(0);
+  const [recentTransactions, setRecentTransactions] = useState<TransactionRow[]>([]);
+
+  useEffect(() => {
+    fetchDashboardMetrics();
+  }, []);
+
+  const fetchDashboardMetrics = async () => {
+    setIsLoading(true);
+    try {
+      const [salesRes, custRes, prodRes] = await Promise.all([
+        apiClient.get('/sales'),
+        apiClient.get('/customers'),
+        apiClient.get('/products'),
+      ]);
+
+      let salesSum = 0;
+      let txRows: TransactionRow[] = [];
+      if (salesRes.data) {
+        const salesList = Array.isArray(salesRes.data) ? salesRes.data : (salesRes.data.value || []);
+        salesList.forEach((s: any) => {
+          salesSum += (s.totalAmount || 0);
+        });
+        txRows = salesList.slice(0, 10).map((s: any) => ({
+          id: s.id || `INV-${s.dbId}`,
+          customer: s.customerName || 'Walk-in Customer',
+          mobile: s.customerPhone || 'N/A',
+          village: 'Store',
+          amount: `₹ ${(s.totalAmount || 0).toFixed(2)}`,
+          mode: s.paymentMode || 'Cash',
+          status: s.status || 'COMPLETED',
+          date: s.createdAt || 'Recent',
+        }));
+      }
+
+      let udhaarSum = 0;
+      let custTotal = 0;
+      if (custRes.data) {
+        const custs = Array.isArray(custRes.data) ? custRes.data : [];
+        custTotal = custs.length;
+        custs.forEach((c: any) => {
+          udhaarSum += (c.udhaar || c.currentBalance || 0);
+        });
+      }
+
+      let prodTotal = 0;
+      if (prodRes.data) {
+        const prods = Array.isArray(prodRes.data) ? prodRes.data : [];
+        prodTotal = prods.length;
+      }
+
+      setTotalSales(salesSum);
+      setTotalUdhaar(udhaarSum);
+      setProductCount(prodTotal);
+      setCustomerCount(custTotal);
+      setRecentTransactions(txRows);
+    } catch (_) {}
+    setIsLoading(false);
+  };
 
   const filteredTx = recentTransactions.filter(
     (t) =>
       t.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.village.toLowerCase().includes(searchQuery.toLowerCase())
+      t.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const statsItems: StatItem[] = [
-    { id: 'sales', title: "Today's Gross Sales", value: '₹ 12,450.00', change: '+18.2% vs yesterday', changeType: 'positive', icon: <ShoppingBagIcon />, borderAccentColor: '#2563EB' },
-    { id: 'udhaar', title: 'Outstanding Market Udhaar', value: '₹ 8,200.00', change: '14 active ledgers', changeType: 'neutral', icon: <AccountBalanceWalletIcon />, borderAccentColor: '#D97706' },
-    { id: 'stock', title: 'Catalog Items Managed', value: '142 Items', change: '5 low stock alerts', changeType: 'negative', icon: <Inventory2Icon />, borderAccentColor: '#10B981' },
-    { id: 'cust', title: 'Registered Customers', value: '88 Clients', change: '+4 registered today', changeType: 'positive', icon: <PeopleAltIcon />, borderAccentColor: '#6366F1' },
+    { id: 'sales', title: "Live Gross Sales", value: `₹ ${totalSales.toFixed(2)}`, change: 'Dynamic SQL DB Feed', changeType: 'positive', icon: <ShoppingBagIcon />, borderAccentColor: '#2563EB' },
+    { id: 'udhaar', title: 'Market Udhaar Dues', value: `₹ ${totalUdhaar.toFixed(2)}`, change: 'Live Ledger Balance', changeType: 'neutral', icon: <AccountBalanceWalletIcon />, borderAccentColor: '#D97706' },
+    { id: 'stock', title: 'Catalog Items Managed', value: `${productCount} Items`, change: 'Active SKU Count', changeType: 'positive', icon: <Inventory2Icon />, borderAccentColor: '#10B981' },
+    { id: 'cust', title: 'Registered Customers', value: `${customerCount} Clients`, change: 'Live Database', changeType: 'positive', icon: <PeopleAltIcon />, borderAccentColor: '#6366F1' },
   ];
 
   const columns: ColumnDef<TransactionRow>[] = [
     { key: 'id', header: 'Invoice Ref', render: (r) => <Typography variant="body2" fontFamily="monospace" fontWeight="700" color="#2563EB">{r.id}</Typography> },
-    { key: 'customer', header: 'Customer & Mobile', render: (r) => <Box><Typography variant="subtitle2" fontWeight="700">{r.customer}</Typography><Typography variant="caption" color="text.secondary">{r.mobile} ({r.village})</Typography></Box> },
+    { key: 'customer', header: 'Customer Name', render: (r) => <Typography variant="subtitle2" fontWeight="700">{r.customer}</Typography> },
     { key: 'amount', header: 'Total Amount', render: (r) => <Typography variant="subtitle2" fontWeight="800" color="#0F172A">{r.amount}</Typography> },
     { key: 'mode', header: 'Payment Mode', render: (r) => <Chip label={r.mode} size="small" color={r.mode === 'Cash' ? 'success' : r.mode === 'UPI' ? 'info' : 'warning'} sx={{ fontWeight: 800, height: 20 }} /> },
     { key: 'status', header: 'Invoice Status' },
@@ -168,15 +224,16 @@ export const Dashboard: React.FC = () => {
         </Paper>
 
         <Typography variant="h6" fontWeight="800" color="#0F172A" mb={1.5}>
-          Recent Billing Transactions & Invoices Stream
+          Recent Billing Transactions & Invoices Stream (Live Database)
         </Typography>
 
         <GenericDataTable<TransactionRow>
           columns={columns}
           data={filteredTx}
           keyExtractor={(row) => row.id}
+          isLoading={isLoading}
           onView={(row) => alert(`Invoice Ref: ${row.id}\nCustomer: ${row.customer}\nAmount: ${row.amount}`)}
-          emptyMessage="No recent transactions found."
+          emptyMessage="No recent transactions found in live DB."
         />
       </Container>
     </Box>

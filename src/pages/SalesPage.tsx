@@ -22,12 +22,7 @@ export interface SaleRow {
 }
 
 export const SalesPage: React.FC = () => {
-  const [sales, setSales] = useState<SaleRow[]>([
-    { id: 'INV-20260911-001', customerName: 'Ramesh Kumar', totalAmount: 420.0, paymentMode: 'Cash', createdAt: '2026-09-11 11:20 AM', status: 'COMPLETED', itemsCount: 3 },
-    { id: 'INV-20260911-002', customerName: 'Suresh Patel', totalAmount: 1250.0, paymentMode: 'Udhaar', createdAt: '2026-09-11 10:45 AM', status: 'PENDING_CREDIT', itemsCount: 5 },
-    { id: 'INV-20260911-003', customerName: 'Anita Devi', totalAmount: 380.0, paymentMode: 'UPI', createdAt: '2026-09-11 09:15 AM', status: 'COMPLETED', itemsCount: 2 },
-    { id: 'INV-20260910-004', customerName: 'Vikas Verma', totalAmount: 880.0, paymentMode: 'Udhaar', createdAt: '2026-09-10 04:30 PM', status: 'PENDING_CREDIT', itemsCount: 4 },
-  ]);
+  const [sales, setSales] = useState<SaleRow[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
