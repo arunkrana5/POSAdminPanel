@@ -120,8 +120,141 @@ export const SalesPage: React.FC = () => {
     { key: 'createdAt', header: 'Invoice Date' },
   ];
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (sale: SaleRow) => {
+    const printWin = window.open('', '_blank', 'width=850,height=1000');
+    if (!printWin) return;
+
+    let itemsRows = '';
+    if (sale.items && sale.items.length > 0) {
+      sale.items.forEach((it, idx) => {
+        const name = it.productName || it.name || 'Product Item';
+        const qty = it.quantity || it.qty || 1;
+        const price = it.unitPrice || it.price || 0;
+        const tot = it.totalPrice || (qty * price);
+        itemsRows += `
+          <tr>
+            <td style="text-align: center; font-size: 13px; padding: 10px; border: 1px solid #E2E8F0;">${idx + 1}</td>
+            <td style="font-size: 13px; font-weight: 600; padding: 10px; border: 1px solid #E2E8F0;">${name}</td>
+            <td style="text-align: center; font-size: 13px; padding: 10px; border: 1px solid #E2E8F0;">${qty}</td>
+            <td style="text-align: right; font-size: 13px; padding: 10px; border: 1px solid #E2E8F0;">₹ ${price.toFixed(2)}</td>
+            <td style="text-align: right; font-size: 13px; font-weight: 700; padding: 10px; border: 1px solid #E2E8F0;">₹ ${tot.toFixed(2)}</td>
+          </tr>
+        `;
+      });
+    } else {
+      itemsRows = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 16px; font-size: 13px; color: #64748B;">Total Bill Amount: ₹ ${(sale.totalAmount || 0).toFixed(2)}</td>
+        </tr>
+      `;
+    }
+
+    const isUdhaar = (sale.paymentMode || '').toLowerCase() === 'udhaar';
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Tax Invoice - ${sale.id}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    body { font-family: system-ui, -apple-system, sans-serif; color: #0F172A; margin: 0; padding: 24px; background: #FFFFFF; }
+    .invoice-container { max-width: 800px; margin: 0 auto; border: 2px solid #0F172A; border-radius: 8px; padding: 32px; box-sizing: border-box; }
+    .header-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .store-brand { font-size: 24px; font-weight: 900; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px; }
+    .store-sub { font-size: 13px; color: #475569; margin-top: 4px; }
+    .invoice-badge { font-size: 24px; font-weight: 900; color: #2563EB; text-align: right; letter-spacing: 1px; }
+    .invoice-meta-text { font-size: 13px; color: #334155; text-align: right; margin-top: 4px; }
+    .customer-box { background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 6px; padding: 16px; margin-bottom: 24px; }
+    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .items-table th { background: #0F172A; color: #FFFFFF; font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 12px 10px; border: 1px solid #0F172A; }
+    .summary-box { width: 320px; margin-left: auto; margin-bottom: 30px; }
+    .summary-table { width: 100%; border-collapse: collapse; }
+    .summary-table td { padding: 8px 12px; font-size: 14px; }
+    .total-row { font-size: 18px !important; font-weight: 900; color: #16A34A; background: #F0FDF4; border-top: 2px solid #0F172A; border-bottom: 2px solid #0F172A; }
+    .footer-note { margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #64748B; }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <table class="header-table">
+      <tr>
+        <td style="vertical-align: top;">
+          <div class="store-brand">VILLAGE POS STORE</div>
+          <div class="store-sub">Official Retail Point of Sale & Billing System</div>
+        </td>
+        <td style="vertical-align: top;">
+          <div class="invoice-badge">TAX INVOICE</div>
+          <div class="invoice-meta-text"><b>Invoice Ref:</b> <span style="font-family: monospace; font-size: 14px;">${sale.id}</span></div>
+          <div class="invoice-meta-text"><b>Date & Time:</b> ${sale.createdAt}</div>
+          <div class="invoice-meta-text"><b>Payment Mode:</b> <span style="color: ${isUdhaar ? '#DC2626' : '#16A34A'}; font-weight: bold;">${(sale.paymentMode || 'Cash').toUpperCase()}</span></div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="customer-box">
+      <table style="width: 100%;">
+        <tr>
+          <td>
+            <div style="font-size: 11px; color: #64748B; font-weight: 700;">BILL TO (CUSTOMER):</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0F172A; margin-top: 4px;">${sale.customerName || 'Walk-in Customer'}</div>
+          </td>
+          <td style="text-align: right; vertical-align: top;">
+            <div style="font-size: 11px; color: #64748B; font-weight: 700;">BILLING STATUS:</div>
+            <div style="display: inline-block; padding: 4px 12px; margin-top: 4px; border-radius: 4px; font-size: 12px; font-weight: 800; background: ${isUdhaar ? '#FEE2E2' : '#DCFCE7'}; color: ${isUdhaar ? '#991B1B' : '#166534'};">
+              ${isUdhaar ? 'CREDIT / UNPAID' : 'PAID IN FULL'}
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;">#</th>
+          <th style="text-align: left;">Product Description</th>
+          <th style="width: 60px; text-align: center;">Qty</th>
+          <th style="width: 110px; text-align: right;">Unit Price</th>
+          <th style="width: 120px; text-align: right;">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsRows}
+      </tbody>
+    </table>
+
+    <div class="summary-box">
+      <table class="summary-table">
+        <tr class="total-row">
+          <td>NET GRAND TOTAL:</td>
+          <td style="text-align: right;">₹ ${(sale.totalAmount || 0).toFixed(2)}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      <b>Thank you for shopping with us! 🙏</b><br>
+      This is an official computer-generated Tax Invoice issued by VillageShop POS System.
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+        window.close();
+      }, 400);
+    };
+  </script>
+</body>
+</html>
+    `;
+
+    printWin.document.open();
+    printWin.document.write(htmlContent);
+    printWin.document.close();
   };
 
   return (
@@ -262,7 +395,7 @@ export const SalesPage: React.FC = () => {
               <Button variant="outlined" color="inherit" onClick={() => setViewingSale(null)}>
                 Close
               </Button>
-              <Button variant="contained" startIcon={<PrintIcon />} onClick={handlePrint} sx={{ bgcolor: '#2563EB' }}>
+              <Button variant="contained" startIcon={<PrintIcon />} onClick={() => handlePrint(viewingSale)} sx={{ bgcolor: '#2563EB' }}>
                 Print A4 Invoice
               </Button>
             </DialogActions>
