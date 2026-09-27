@@ -56,7 +56,14 @@ export const SalesPage: React.FC = () => {
   const fetchSales = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/sales`, { headers: getAuthHeaders() });
+      const tenantId = localStorage.getItem('tenant_id') || localStorage.getItem('tenantId') || '';
+      const tenantCode = localStorage.getItem('tenant_code') || localStorage.getItem('tenantCode') || '';
+      const params = new URLSearchParams();
+      if (tenantId) params.append('tenantId', tenantId);
+      if (tenantCode) params.append('tenantCode', tenantCode);
+
+      const qStr = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`${getApiBaseUrl()}/sales${qStr}`, { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
