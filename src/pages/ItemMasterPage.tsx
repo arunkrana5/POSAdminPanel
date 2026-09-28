@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Chip, Typography, Alert, Container } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ScaleIcon from '@mui/icons-material/Scale';
@@ -9,6 +9,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
+import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface ItemMasterRow {
   id: string;
@@ -34,6 +35,33 @@ export const ItemMasterPage: React.FC = () => {
   const [alertMsg, setAlertMsg] = useState('');
   const [openModal, setOpenModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemMasterRow | null>(null);
+
+  useEffect(() => {
+    fetchItemMasters();
+  }, []);
+
+  const fetchItemMasters = async () => {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/ItemMasters?_t=${Date.now()}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: ItemMasterRow[] = data.map((d: any) => ({
+            id: (d.id || d.ID || '').toString(),
+            itemCode: d.itemCode || d.ItemCode || '',
+            name: d.name || d.Name || '',
+            category: d.category || d.Category || 'General',
+            uom: d.unit || d.Unit || 'pcs',
+            format: (d.format || d.Format || 'Packed') === 'Loose' ? 'Loose' : 'Packed',
+            description: d.description || d.Description || '',
+          }));
+          setItems(mapped);
+        }
+      }
+    } catch (_) {}
+  };
 
   const filteredItems = items.filter(
     (i) =>
@@ -130,13 +158,36 @@ export const ItemMasterPage: React.FC = () => {
     setOpenModal(true);
   };
 
-  const handleDelete = (item: ItemMasterRow) => {
+  const handleDelete = async (item: ItemMasterRow) => {
+    try {
+      await fetch(`${getApiBaseUrl()}/ItemMasters/${item.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+    } catch (_) {}
     setItems((prev) => prev.filter((i) => i.id !== item.id));
     setAlertMsg(`Item ${item.name} removed from Item Master.`);
   };
 
-  const handleSaveModal = (formValues: Record<string, any>) => {
+  const handleSaveModal = async (formValues: Record<string, any>) => {
+    const payload = {
+      itemCode: formValues.itemCode,
+      name: formValues.name,
+      category: formValues.category,
+      unit: formValues.uom,
+      format: formValues.format || 'Packed',
+      description: formValues.description,
+    };
+
     if (editingItem) {
+      try {
+        await fetch(`${getApiBaseUrl()}/ItemMasters/${editingItem.id}`, {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, id: Number(editingItem.id) }),
+        });
+      } catch (_) {}
+
       setItems((prev) =>
         prev.map((i) =>
           i.id === editingItem.id
@@ -154,6 +205,17 @@ export const ItemMasterPage: React.FC = () => {
       );
       setAlertMsg(`Master Item ${formValues.name} updated.`);
     } else {
+      try {
+        const res = await fetch(`${getApiBaseUrl()}/ItemMasters`, {
+          method: 'POST',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          fetchItemMasters();
+        }
+      } catch (_) {}
+
       const newItem: ItemMasterRow = {
         id: `${items.length + 1}`,
         itemCode: formValues.itemCode || `ITM-${1000 + Math.floor(Math.random() * 9000)}`,
