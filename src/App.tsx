@@ -6,7 +6,7 @@ import { getTenantTheme } from './theme';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TenantsPage } from './pages/TenantsPage';
-import { ProductsPage } from './pages/ProductsPage';
+import { StockInPage } from './pages/StockInPage';
 import { ItemsPage } from './pages/ItemsPage';
 import { SalesPage } from './pages/SalesPage';
 import { CustomersPage } from './pages/CustomersPage';
@@ -31,7 +31,7 @@ const MainLayout: React.FC = () => {
         <Route path="/tenants" element={<ProtectedRoute><TenantsPage /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
         <Route path="/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
-        <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
+        <Route path="/stock-in" element={<ProtectedRoute><StockInPage /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
         <Route path="/udhaar" element={<ProtectedRoute><UdhaarPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />

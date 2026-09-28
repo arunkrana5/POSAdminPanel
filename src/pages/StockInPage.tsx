@@ -34,7 +34,7 @@ export interface ProductRow {
   status?: string;
 }
 
-export const ProductsPage: React.FC = () => {
+export const StockInPage: React.FC = () => {
   const [products, setProducts] = useState<ProductRow[]>([
     { id: 1, productCode: 'PRD-001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', brand: 'ITC', unit: 'pkt', purchasePrice: 195.0, sellingPrice: 220.0, mrp: 235.0, gstPercent: 5, currentStock: 15, minimumStock: 5, batchNumber: 'B-2026-09', rackNumber: 'RACK-A1', expiryDate: '2027-03-31', hsnCode: '11010000', status: 'ACTIVE' },
     { id: 2, productCode: 'PRD-002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', brand: 'Fortune', unit: 'bottle', purchasePrice: 130.0, sellingPrice: 145.0, mrp: 160.0, gstPercent: 5, currentStock: 3, minimumStock: 5, batchNumber: 'B-2026-08', rackNumber: 'RACK-B2', expiryDate: '2026-12-31', hsnCode: '15149010', status: 'ACTIVE' },
@@ -43,7 +43,16 @@ export const ProductsPage: React.FC = () => {
     { id: 5, productCode: 'PRD-005', name: 'Sugar (चीनी) 1kg', category: 'Groceries', brand: 'General', unit: 'kg', purchasePrice: 38.0, sellingPrice: 42.0, mrp: 45.0, gstPercent: 5, currentStock: 50, minimumStock: 15, batchNumber: 'B-2026-02', rackNumber: 'RACK-A3', expiryDate: '2027-06-30', hsnCode: '17011490', status: 'ACTIVE' },
   ]);
 
-  const [availableItems, setAvailableItems] = useState<any[]>([]);
+  const defaultCatalogItems = [
+    { id: 1, itemCode: 'ITM-1001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', unit: 'pkt', format: 'Packed' },
+    { id: 2, itemCode: 'ITM-1002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', unit: 'bottle', format: 'Packed' },
+    { id: 3, itemCode: 'ITM-1003', name: 'Tata Salt 1kg', category: 'Groceries', unit: 'pkt', format: 'Packed' },
+    { id: 4, itemCode: 'ITM-1004', name: 'Surf Excel 1kg', category: 'Detergent', unit: 'pkt', format: 'Packed' },
+    { id: 5, itemCode: 'ITM-1005', name: 'Loose Sugar (चीनी)', category: 'Groceries', unit: 'kg', format: 'Loose' },
+    { id: 6, itemCode: 'ITM-1006', name: 'Toor Dal (अरहर दाल)', category: 'Groceries', unit: 'kg', format: 'Loose' },
+  ];
+
+  const [availableItems, setAvailableItems] = useState<any[]>(defaultCatalogItems);
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
 
@@ -73,16 +82,21 @@ export const ProductsPage: React.FC = () => {
       const res = await fetch(`${getApiBaseUrl()}/Items?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setAvailableItems(data);
+        const merged = Array.isArray(data) ? [...data] : [];
+        const existingNames = new Set(merged.map((i: any) => (i.name || i.Name || '').toString().toLowerCase()));
+        for (const d of defaultCatalogItems) {
+          if (!existingNames.has(d.name.toLowerCase())) {
+            merged.push(d);
+          }
         }
+        setAvailableItems(merged);
       }
     } catch (_) {}
   };
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/products?_t=${Date.now()}`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/StockIn?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -142,7 +156,7 @@ export const ProductsPage: React.FC = () => {
   const outOfStockCount = products.filter((p) => p.currentStock === 0).length;
 
   const statsItems: StatItem[] = [
-    { id: 'total', title: 'Total Catalog Products', value: products.length, change: '100% synchronized', icon: <Inventory2Icon />, borderAccentColor: '#2563EB' },
+    { id: 'total', title: 'Total Stock Entries', value: products.length, change: '100% synchronized', icon: <Inventory2Icon />, borderAccentColor: '#2563EB' },
     { id: 'in_stock', title: 'In Stock & Available', value: products.length - outOfStockCount, change: 'Ready for POS billing', icon: <CheckCircleIcon />, borderAccentColor: '#10B981' },
     { id: 'low_stock', title: 'Low Stock Alerts', value: lowStockCount, subtitle: 'Requires supplier reorder', icon: <WarningIcon />, borderAccentColor: '#D97706' },
     { id: 'out_stock', title: 'Out of Stock Items', value: outOfStockCount, subtitle: 'Zero inventory on hand', icon: <WarningIcon />, borderAccentColor: '#EF4444' },
@@ -151,7 +165,7 @@ export const ProductsPage: React.FC = () => {
   const columns: ColumnDef<ProductRow>[] = [
     {
       key: 'name',
-      header: 'Product Logo & Name',
+      header: 'Stock Logo & Name',
       render: (r) => (
         <Box display="flex" alignItems="center" gap={1.5}>
           {r.imageUrl ? (
@@ -233,10 +247,10 @@ export const ProductsPage: React.FC = () => {
 
   const handleDelete = async (product: ProductRow) => {
     try {
-      await fetch(`${getApiBaseUrl()}/products/${product.id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      await fetch(`${getApiBaseUrl()}/StockIn/${product.id}`, { method: 'DELETE', headers: getAuthHeaders() });
     } catch (_) {}
     setProducts((prev) => prev.filter((p) => p.id !== product.id));
-    setAlertMsg(`Product ${product.name} deleted.`);
+    setAlertMsg(`Stock item ${product.name} deleted.`);
   };
 
   const handleSaveModal = async () => {
@@ -261,7 +275,7 @@ export const ProductsPage: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/products`, {
+      const res = await fetch(`${getApiBaseUrl()}/StockIn`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -286,11 +300,11 @@ export const ProductsPage: React.FC = () => {
       <HeaderNav />
       <Container maxWidth="xl" sx={{ pt: 3, pb: 6 }}>
         <PageHeader
-          title="Stock In & Inventory"
+          title="Stock In Directory"
           subtitle="Select an Item definition, set stock rate, tax & upload product photo."
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
-          searchPlaceholder="Search product, barcode..."
+          searchPlaceholder="Search stock item, barcode..."
           primaryAction={{
             label: 'Stock In Entry',
             icon: <AddIcon />,

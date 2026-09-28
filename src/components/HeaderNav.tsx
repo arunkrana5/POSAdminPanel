@@ -71,7 +71,7 @@ export const HeaderNav: React.FC = () => {
     { label: 'Client Tenants', path: '/tenants', icon: <BusinessIcon sx={{ fontSize: 15 }} /> },
     { label: 'Sales & POS', path: '/sales', icon: <ShoppingBagIcon sx={{ fontSize: 15 }} /> },
     { label: 'Items', path: '/items', icon: <AssignmentIcon sx={{ fontSize: 15 }} /> },
-    { label: 'Stock In & Inventory', path: '/products', icon: <Inventory2Icon sx={{ fontSize: 15 }} /> },
+    { label: 'Stock In & Inventory', path: '/stock-in', icon: <Inventory2Icon sx={{ fontSize: 15 }} /> },
     { label: 'Customer Directory', path: '/customers', icon: <PeopleAltIcon sx={{ fontSize: 15 }} /> },
     { label: 'Udhaar Ledgers', path: '/udhaar', icon: <AccountBalanceWalletIcon sx={{ fontSize: 15 }} /> },
     { label: 'Financial Reports', path: '/reports', icon: <AssessmentIcon sx={{ fontSize: 15 }} /> },
