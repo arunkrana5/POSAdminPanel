@@ -11,7 +11,7 @@ import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTab
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
-export interface ItemMasterRow {
+export interface ItemRow {
   id: string;
   itemCode: string;
   name: string;
@@ -21,8 +21,8 @@ export interface ItemMasterRow {
   description?: string;
 }
 
-export const ItemMasterPage: React.FC = () => {
-  const [items, setItems] = useState<ItemMasterRow[]>([
+export const ItemsPage: React.FC = () => {
+  const [items, setItems] = useState<ItemRow[]>([
     { id: '1', itemCode: 'ITM-1001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', uom: 'pkt', format: 'Packed', description: 'Whole Wheat Atta 5kg Packet' },
     { id: '2', itemCode: 'ITM-1002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', uom: 'bottle', format: 'Packed', description: 'Mustard Oil 1L Bottle' },
     { id: '3', itemCode: 'ITM-1003', name: 'Tata Salt 1kg', category: 'Groceries', uom: 'pkt', format: 'Packed', description: 'Iodized Salt 1kg Packet' },
@@ -34,21 +34,21 @@ export const ItemMasterPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
   const [openModal, setOpenModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<ItemMasterRow | null>(null);
+  const [editingItem, setEditingItem] = useState<ItemRow | null>(null);
 
   useEffect(() => {
-    fetchItemMasters();
+    fetchItems();
   }, []);
 
-  const fetchItemMasters = async () => {
+  const fetchItems = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/ItemMasters?_t=${Date.now()}`, {
+      const res = await fetch(`${getApiBaseUrl()}/Items?_t=${Date.now()}`, {
         headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const mapped: ItemMasterRow[] = data.map((d: any) => ({
+          const mapped: ItemRow[] = data.map((d: any) => ({
             id: (d.id || d.ID || '').toString(),
             itemCode: d.itemCode || d.ItemCode || '',
             name: d.name || d.Name || '',
@@ -78,7 +78,7 @@ export const ItemMasterPage: React.FC = () => {
     { id: 'loose', title: 'Loose / Bulk Items', value: looseCount, subtitle: 'Weight/Volume adjustable', icon: <ScaleIcon />, borderAccentColor: '#D97706' },
   ];
 
-  const columns: ColumnDef<ItemMasterRow>[] = [
+  const columns: ColumnDef<ItemRow>[] = [
     {
       key: 'itemCode',
       header: 'Item Code & Name',
@@ -153,20 +153,20 @@ export const ItemMasterPage: React.FC = () => {
     setOpenModal(true);
   };
 
-  const handleOpenEdit = (item: ItemMasterRow) => {
+  const handleOpenEdit = (item: ItemRow) => {
     setEditingItem(item);
     setOpenModal(true);
   };
 
-  const handleDelete = async (item: ItemMasterRow) => {
+  const handleDelete = async (item: ItemRow) => {
     try {
-      await fetch(`${getApiBaseUrl()}/ItemMasters/${item.id}`, {
+      await fetch(`${getApiBaseUrl()}/Items/${item.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
     } catch (_) {}
     setItems((prev) => prev.filter((i) => i.id !== item.id));
-    setAlertMsg(`Item ${item.name} removed from Item Master.`);
+    setAlertMsg(`Item ${item.name} removed.`);
   };
 
   const handleSaveModal = async (formValues: Record<string, any>) => {
@@ -181,7 +181,7 @@ export const ItemMasterPage: React.FC = () => {
 
     if (editingItem) {
       try {
-        await fetch(`${getApiBaseUrl()}/ItemMasters/${editingItem.id}`, {
+        await fetch(`${getApiBaseUrl()}/Items/${editingItem.id}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, id: Number(editingItem.id) }),
@@ -203,20 +203,20 @@ export const ItemMasterPage: React.FC = () => {
             : i
         )
       );
-      setAlertMsg(`Master Item ${formValues.name} updated.`);
+      setAlertMsg(`Item ${formValues.name} updated.`);
     } else {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/ItemMasters`, {
+        const res = await fetch(`${getApiBaseUrl()}/Items`, {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          fetchItemMasters();
+          fetchItems();
         }
       } catch (_) {}
 
-      const newItem: ItemMasterRow = {
+      const newItem: ItemRow = {
         id: `${items.length + 1}`,
         itemCode: formValues.itemCode || `ITM-${1000 + Math.floor(Math.random() * 9000)}`,
         name: formValues.name,
@@ -226,7 +226,7 @@ export const ItemMasterPage: React.FC = () => {
         description: formValues.description,
       };
       setItems((prev) => [newItem, ...prev]);
-      setAlertMsg(`New Item ${formValues.name} added to Item Master.`);
+      setAlertMsg(`New Item ${formValues.name} added.`);
     }
     setOpenModal(false);
   };
@@ -257,7 +257,7 @@ export const ItemMasterPage: React.FC = () => {
         <StatCardGrid items={statsItems} columns={{ xs: 12, sm: 6, md: 4 }} />
 
         <Box sx={{ mt: 4 }}>
-          <GenericDataTable<ItemMasterRow>
+          <GenericDataTable<ItemRow>
             data={filteredItems}
             columns={columns}
             keyExtractor={(r) => r.id}

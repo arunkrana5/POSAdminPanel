@@ -7,7 +7,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { TenantsPage } from './pages/TenantsPage';
 import { ProductsPage } from './pages/ProductsPage';
-import { ItemMasterPage } from './pages/ItemMasterPage';
+import { ItemsPage } from './pages/ItemsPage';
 import { SalesPage } from './pages/SalesPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { UdhaarPage } from './pages/UdhaarPage';
@@ -30,7 +30,7 @@ const MainLayout: React.FC = () => {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/tenants" element={<ProtectedRoute><TenantsPage /></ProtectedRoute>} />
         <Route path="/sales" element={<ProtectedRoute><SalesPage /></ProtectedRoute>} />
-        <Route path="/item-master" element={<ProtectedRoute><ItemMasterPage /></ProtectedRoute>} />
+        <Route path="/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
         <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
         <Route path="/udhaar" element={<ProtectedRoute><UdhaarPage /></ProtectedRoute>} />
