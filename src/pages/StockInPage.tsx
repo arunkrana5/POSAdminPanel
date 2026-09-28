@@ -35,24 +35,8 @@ export interface ProductRow {
 }
 
 export const StockInPage: React.FC = () => {
-  const [products, setProducts] = useState<ProductRow[]>([
-    { id: 1, productCode: 'PRD-001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', brand: 'ITC', unit: 'pkt', purchasePrice: 195.0, sellingPrice: 220.0, mrp: 235.0, gstPercent: 5, currentStock: 15, minimumStock: 5, batchNumber: 'B-2026-09', rackNumber: 'RACK-A1', expiryDate: '2027-03-31', hsnCode: '11010000', status: 'ACTIVE' },
-    { id: 2, productCode: 'PRD-002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', brand: 'Fortune', unit: 'bottle', purchasePrice: 130.0, sellingPrice: 145.0, mrp: 160.0, gstPercent: 5, currentStock: 3, minimumStock: 5, batchNumber: 'B-2026-08', rackNumber: 'RACK-B2', expiryDate: '2026-12-31', hsnCode: '15149010', status: 'ACTIVE' },
-    { id: 3, productCode: 'PRD-003', name: 'Tata Salt 1kg', category: 'Groceries', brand: 'Tata', unit: 'pkt', purchasePrice: 22.0, sellingPrice: 28.0, mrp: 30.0, gstPercent: 0, currentStock: 40, minimumStock: 10, batchNumber: 'B-2026-01', rackNumber: 'RACK-A2', expiryDate: '', hsnCode: '25010010', status: 'ACTIVE' },
-    { id: 4, productCode: 'PRD-004', name: 'Surf Excel 1kg', category: 'Detergent', brand: 'HUL', unit: 'pkt', purchasePrice: 110.0, sellingPrice: 130.0, mrp: 140.0, gstPercent: 18, currentStock: 0, minimumStock: 5, batchNumber: 'B-2026-04', rackNumber: 'RACK-C1', expiryDate: '', hsnCode: '34022090', status: 'INACTIVE' },
-    { id: 5, productCode: 'PRD-005', name: 'Sugar (चीनी) 1kg', category: 'Groceries', brand: 'General', unit: 'kg', purchasePrice: 38.0, sellingPrice: 42.0, mrp: 45.0, gstPercent: 5, currentStock: 50, minimumStock: 15, batchNumber: 'B-2026-02', rackNumber: 'RACK-A3', expiryDate: '2027-06-30', hsnCode: '17011490', status: 'ACTIVE' },
-  ]);
-
-  const defaultCatalogItems = [
-    { id: 1, itemCode: 'ITM-1001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', unit: 'pkt', format: 'Packed' },
-    { id: 2, itemCode: 'ITM-1002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', unit: 'bottle', format: 'Packed' },
-    { id: 3, itemCode: 'ITM-1003', name: 'Tata Salt 1kg', category: 'Groceries', unit: 'pkt', format: 'Packed' },
-    { id: 4, itemCode: 'ITM-1004', name: 'Surf Excel 1kg', category: 'Detergent', unit: 'pkt', format: 'Packed' },
-    { id: 5, itemCode: 'ITM-1005', name: 'Loose Sugar (चीनी)', category: 'Groceries', unit: 'kg', format: 'Loose' },
-    { id: 6, itemCode: 'ITM-1006', name: 'Toor Dal (अरहर दाल)', category: 'Groceries', unit: 'kg', format: 'Loose' },
-  ];
-
-  const [availableItems, setAvailableItems] = useState<any[]>(defaultCatalogItems);
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
 
@@ -82,14 +66,9 @@ export const StockInPage: React.FC = () => {
       const res = await fetch(`${getApiBaseUrl()}/Items?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
-        const merged = Array.isArray(data) ? [...data] : [];
-        const existingNames = new Set(merged.map((i: any) => (i.name || i.Name || '').toString().toLowerCase()));
-        for (const d of defaultCatalogItems) {
-          if (!existingNames.has(d.name.toLowerCase())) {
-            merged.push(d);
-          }
+        if (Array.isArray(data)) {
+          setAvailableItems(data);
         }
-        setAvailableItems(merged);
       }
     } catch (_) {}
   };
@@ -99,7 +78,7 @@ export const StockInPage: React.FC = () => {
       const res = await fetch(`${getApiBaseUrl()}/StockIn?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setProducts(data.map((p) => ({
             ...p,
             status: (p.currentStock ?? 0) > 0 ? 'ACTIVE' : 'INACTIVE',

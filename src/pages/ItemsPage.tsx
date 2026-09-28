@@ -22,14 +22,7 @@ export interface ItemRow {
 }
 
 export const ItemsPage: React.FC = () => {
-  const [items, setItems] = useState<ItemRow[]>([
-    { id: '1', itemCode: 'ITM-1001', name: 'Aashirvaad Atta 5kg', category: 'Groceries', uom: 'pkt', format: 'Packed', description: 'Whole Wheat Atta 5kg Packet' },
-    { id: '2', itemCode: 'ITM-1002', name: 'Fortune Mustard Oil 1L', category: 'Edible Oil', uom: 'bottle', format: 'Packed', description: 'Mustard Oil 1L Bottle' },
-    { id: '3', itemCode: 'ITM-1003', name: 'Tata Salt 1kg', category: 'Groceries', uom: 'pkt', format: 'Packed', description: 'Iodized Salt 1kg Packet' },
-    { id: '4', itemCode: 'ITM-1004', name: 'Surf Excel 1kg', category: 'Detergent', uom: 'pkt', format: 'Packed', description: 'Detergent Powder 1kg Packet' },
-    { id: '5', itemCode: 'ITM-1005', name: 'Loose Sugar (चीनी)', category: 'Groceries', uom: 'kg', format: 'Loose', description: 'Refined White Sugar per kg' },
-    { id: '6', itemCode: 'ITM-1006', name: 'Toor Dal (अरहर दाल)', category: 'Groceries', uom: 'kg', format: 'Loose', description: 'Unpolished Toor Dal per kg' },
-  ]);
+  const [items, setItems] = useState<ItemRow[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
@@ -47,7 +40,7 @@ export const ItemsPage: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           const mapped: ItemRow[] = data.map((d: any) => ({
             id: (d.id || d.ID || '').toString(),
             itemCode: d.itemCode || d.ItemCode || '',
