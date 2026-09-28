@@ -70,7 +70,7 @@ export const HeaderNav: React.FC = () => {
     { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon sx={{ fontSize: 15 }} /> },
     { label: 'Client Tenants', path: '/tenants', icon: <BusinessIcon sx={{ fontSize: 15 }} /> },
     { label: 'Sales & POS', path: '/sales', icon: <ShoppingBagIcon sx={{ fontSize: 15 }} /> },
-    { label: 'Item Master', path: '/item-master', icon: <AssignmentIcon sx={{ fontSize: 15 }} /> },
+    { label: 'Items', path: '/item-master', icon: <AssignmentIcon sx={{ fontSize: 15 }} /> },
     { label: 'Stock In & Inventory', path: '/products', icon: <Inventory2Icon sx={{ fontSize: 15 }} /> },
     { label: 'Customer Directory', path: '/customers', icon: <PeopleAltIcon sx={{ fontSize: 15 }} /> },
     { label: 'Udhaar Ledgers', path: '/udhaar', icon: <AccountBalanceWalletIcon sx={{ fontSize: 15 }} /> },

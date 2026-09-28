@@ -236,13 +236,13 @@ export const ItemMasterPage: React.FC = () => {
       <HeaderNav />
       <Container maxWidth="xl" sx={{ pt: 3, pb: 6 }}>
         <PageHeader
-          title="Item Master Definitions"
-          subtitle="Core Item Master definitions (Item Code, Name, Category, UOM & Format). Pricing, Barcode & Stock Entry are managed separately under Stock In."
+          title="Items Directory"
+          subtitle="Core Item definitions (Item Code, Name, Category, UOM & Format). Pricing, Barcode & Stock Entry are managed separately under Stock In."
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search Item Code, Name, Category..."
           primaryAction={{
-            label: 'Define New Master Item',
+            label: 'Define New Item',
             icon: <AddIcon />,
             onClick: handleOpenAdd,
           }}
@@ -263,19 +263,19 @@ export const ItemMasterPage: React.FC = () => {
             keyExtractor={(r) => r.id}
             onEdit={handleOpenEdit}
             onDelete={handleDelete}
-            emptyMessage="No master items defined."
+            emptyMessage="No items defined."
           />
         </Box>
       </Container>
 
       <GenericFormModal
         open={openModal}
-        title={editingItem ? 'Edit Master Item Definition' : 'Define New Master Item'}
+        title={editingItem ? 'Edit Item Definition' : 'Define New Item'}
         fields={modalFields}
         initialValues={editingItem || {}}
         onClose={() => setOpenModal(false)}
         onSubmit={handleSaveModal}
-        submitLabel={editingItem ? 'Update Master Definition' : 'Save to Item Master'}
+        submitLabel={editingItem ? 'Update Item' : 'Save Item'}
       />
     </Box>
   );
