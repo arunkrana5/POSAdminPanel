@@ -32,6 +32,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import BusinessIcon from '@mui/icons-material/Business';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import AssignmentIcon from '@mui/icons-material/Assignment';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
@@ -69,7 +70,8 @@ export const HeaderNav: React.FC = () => {
     { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon sx={{ fontSize: 15 }} /> },
     { label: 'Client Tenants', path: '/tenants', icon: <BusinessIcon sx={{ fontSize: 15 }} /> },
     { label: 'Sales & POS', path: '/sales', icon: <ShoppingBagIcon sx={{ fontSize: 15 }} /> },
-    { label: 'Products Catalog', path: '/products', icon: <Inventory2Icon sx={{ fontSize: 15 }} /> },
+    { label: 'Item Master', path: '/item-master', icon: <AssignmentIcon sx={{ fontSize: 15 }} /> },
+    { label: 'Stock In & Inventory', path: '/products', icon: <Inventory2Icon sx={{ fontSize: 15 }} /> },
     { label: 'Customer Directory', path: '/customers', icon: <PeopleAltIcon sx={{ fontSize: 15 }} /> },
     { label: 'Udhaar Ledgers', path: '/udhaar', icon: <AccountBalanceWalletIcon sx={{ fontSize: 15 }} /> },
     { label: 'Financial Reports', path: '/reports', icon: <AssessmentIcon sx={{ fontSize: 15 }} /> },
