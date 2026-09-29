@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Chip, Alert, MenuItem, TextField, Button, Paper } from '@mui/material';
+import { Box, Container, Typography, Chip, Alert, MenuItem, TextField, Button, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -55,6 +55,50 @@ export const StockInPage: React.FC = () => {
     barcode: '',
     hsnCode: '',
   });
+
+  const [openQuickItemModal, setOpenQuickItemModal] = useState(false);
+  const [quickItemForm, setQuickItemForm] = useState({
+    itemCode: `ITM-${1000 + Math.floor(Math.random() * 8999)}`,
+    name: '',
+    category: 'Groceries',
+    unit: 'pcs',
+    format: 'Packed',
+  });
+
+  const handleQuickCreateItem = async () => {
+    if (!quickItemForm.name.trim()) return;
+    const payload = {
+      itemCode: quickItemForm.itemCode,
+      name: quickItemForm.name.trim(),
+      category: quickItemForm.category.trim(),
+      unit: quickItemForm.unit.trim(),
+      format: quickItemForm.format,
+      description: 'Quick Item created in Stock In',
+    };
+    let createdItem: any = { id: Date.now(), ...payload };
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/Items`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        createdItem = { ...createdItem, id: data.id || data.ID || createdItem.id };
+      }
+    } catch (_) {}
+
+    setAvailableItems((prev) => [createdItem, ...prev]);
+    setSelectedItemObj(createdItem);
+    setOpenQuickItemModal(false);
+    setQuickItemForm({
+      itemCode: `ITM-${1000 + Math.floor(Math.random() * 8999)}`,
+      name: '',
+      category: 'Groceries',
+      unit: 'pcs',
+      format: 'Packed',
+    });
+  };
 
   useEffect(() => {
     fetchProducts();
@@ -326,27 +370,44 @@ export const StockInPage: React.FC = () => {
 
             {/* STEP 1: Select Item Dropdown */}
             <Box sx={{ p: 2, bgcolor: '#EFF6FF', borderRadius: '8px', border: '1.5px solid #93C5FD', mb: 2 }}>
-              <Typography variant="subtitle2" fontWeight="700" color="#1E40AF" mb={1}>
-                1. Select Item from Catalog *
-              </Typography>
-              <TextField
-                select
-                fullWidth
-                size="small"
-                label="Choose Item"
-                value={selectedItemObj ? (selectedItemObj.id || selectedItemObj.ID || '') : ''}
-                onChange={(e) => {
-                  const found = availableItems.find((i) => (i.id || i.ID || '').toString() === e.target.value);
-                  if (found) setSelectedItemObj(found);
-                }}
-                sx={{ bgcolor: '#FFFFFF' }}
-              >
-                {availableItems.map((item) => (
-                  <MenuItem key={item.id || item.ID} value={(item.id || item.ID).toString()}>
-                    {item.name || item.Name} ({item.category || item.Category} • {item.unit || item.Unit || 'pcs'})
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="subtitle2" fontWeight="700" color="#1E40AF">
+                  1. Select Item from Catalog *
+                </Typography>
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setOpenQuickItemModal(true)}
+                  sx={{ textTransform: 'none', fontWeight: 700, fontSize: '0.75rem', py: 0.5 }}
+                >
+                  + Create New Item
+                </Button>
+              </Box>
+              {availableItems.length === 0 ? (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  No items found in your catalog. Click <strong>"+ Create New Item"</strong> above to add an item!
+                </Alert>
+              ) : (
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  label="Choose Item"
+                  value={selectedItemObj ? (selectedItemObj.id || selectedItemObj.ID || '') : ''}
+                  onChange={(e) => {
+                    const found = availableItems.find((i) => (i.id || i.ID || '').toString() === e.target.value);
+                    if (found) setSelectedItemObj(found);
+                  }}
+                  sx={{ bgcolor: '#FFFFFF' }}
+                >
+                  {availableItems.map((item) => (
+                    <MenuItem key={item.id || item.ID} value={(item.id || item.ID).toString()}>
+                      {item.name || item.Name} ({item.category || item.Category} • {item.unit || item.Unit || 'pcs'})
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
             </Box>
 
             {!selectedItemObj ? (
@@ -459,6 +520,64 @@ export const StockInPage: React.FC = () => {
           </Paper>
         </Box>
       )}
+
+      {/* Quick Item Creation Modal */}
+      <Dialog open={openQuickItemModal} onClose={() => setOpenQuickItemModal(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>+ Create New Catalog Item</DialogTitle>
+        <DialogContent dividers>
+          <Box display="flex" flexDirection="column" gap={2} pt={1}>
+            <TextField
+              label="Item Code"
+              size="small"
+              fullWidth
+              value={quickItemForm.itemCode}
+              onChange={(e) => setQuickItemForm({ ...quickItemForm, itemCode: e.target.value })}
+            />
+            <TextField
+              label="Item Name *"
+              size="small"
+              fullWidth
+              required
+              value={quickItemForm.name}
+              onChange={(e) => setQuickItemForm({ ...quickItemForm, name: e.target.value })}
+            />
+            <TextField
+              label="Category"
+              size="small"
+              fullWidth
+              value={quickItemForm.category}
+              onChange={(e) => setQuickItemForm({ ...quickItemForm, category: e.target.value })}
+            />
+            <TextField
+              label="Unit of Measurement (UOM)"
+              size="small"
+              fullWidth
+              placeholder="e.g. kg, pkt, bottle, pcs"
+              value={quickItemForm.unit}
+              onChange={(e) => setQuickItemForm({ ...quickItemForm, unit: e.target.value })}
+            />
+            <TextField
+              select
+              label="Format"
+              size="small"
+              fullWidth
+              value={quickItemForm.format}
+              onChange={(e) => setQuickItemForm({ ...quickItemForm, format: e.target.value })}
+            >
+              <MenuItem value="Packed">Packed Item</MenuItem>
+              <MenuItem value="Loose">Loose / Adjustable Item</MenuItem>
+            </TextField>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenQuickItemModal(false)} color="inherit">
+            Cancel
+          </Button>
+          <Button onClick={handleQuickCreateItem} variant="contained" color="primary" disabled={!quickItemForm.name.trim()}>
+            Save & Select Item
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
