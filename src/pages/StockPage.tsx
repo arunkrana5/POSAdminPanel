@@ -34,7 +34,7 @@ export interface ProductRow {
   status?: string;
 }
 
-export const StockInPage: React.FC = () => {
+export const StockPage: React.FC = () => {
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,7 +119,7 @@ export const StockInPage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch(`${getApiBaseUrl()}/StockIn?_t=${Date.now()}`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/Stock?_t=${Date.now()}`, { headers: getAuthHeaders() });
       if (res && res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -298,7 +298,7 @@ export const StockInPage: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/StockIn`, {
+      const res = await fetch(`${getApiBaseUrl()}/Stock`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
