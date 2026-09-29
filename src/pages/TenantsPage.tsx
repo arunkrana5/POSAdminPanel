@@ -23,6 +23,8 @@ export interface TenantRow {
   ownerPhone: string;
   joinedDate: string;
   storesCount: number;
+  adminUsername?: string;
+  primaryColor?: string;
 }
 
 export const TenantsPage: React.FC = () => {
@@ -64,6 +66,8 @@ export const TenantsPage: React.FC = () => {
             ownerPhone: t.ownerPhone || t.OwnerPhone || '+91 98765 43210',
             joinedDate: t.joinedDate || t.JoinedDate || 'Recently',
             storesCount: t.storesCount || t.StoresCount || 1,
+            adminUsername: t.adminUsername || t.AdminUsername || 'admin',
+            primaryColor: t.primaryColor || t.PrimaryColor || '#DC2626',
           }));
           setTenants(mapped);
         }
@@ -125,10 +129,13 @@ export const TenantsPage: React.FC = () => {
   ];
 
   const modalFields: FormFieldDef[] = [
-    { name: 'name', label: 'Client Store / Tenant Name', type: 'text', required: true, placeholder: 'e.g. Laxmi General Store' },
-    { name: 'code', label: 'Tenant Code (Short)', type: 'text', required: true, placeholder: 'e.g. LAXMI_STORE' },
-    { name: 'ownerName', label: 'Owner Name', type: 'text', required: true },
-    { name: 'ownerPhone', label: 'Owner Mobile Phone', type: 'text', required: true },
+    { name: 'name', label: 'Client Store / Tenant Name', type: 'text', required: true, placeholder: 'e.g. Arun Digital Cafe' },
+    { name: 'code', label: 'Tenant Code (Short)', type: 'text', required: true, placeholder: 'e.g. ARUNDC' },
+    { name: 'ownerName', label: 'Owner Name', type: 'text', required: true, placeholder: 'e.g. Arun Rana' },
+    { name: 'ownerPhone', label: 'Owner Mobile Phone', type: 'text', required: true, placeholder: 'e.g. 9876543210' },
+    { name: 'adminUsername', label: 'Admin User ID / Username (Case-Insensitive Unique)', type: 'text', required: true, placeholder: 'e.g. arundc_admin' },
+    { name: 'adminPassword', label: 'Admin Password', type: 'text', required: false, placeholder: 'Default: 12345 (Leave blank to keep current)' },
+    { name: 'primaryColor', label: 'Primary Theme Color', type: 'text', required: false, placeholder: 'e.g. #DC2626 or red' },
     {
       name: 'plan',
       label: 'Subscription Plan',
@@ -142,12 +149,12 @@ export const TenantsPage: React.FC = () => {
     },
     {
       name: 'activeStatus',
-      label: 'Status',
+      label: 'Lock / Unlock Account Status',
       type: 'select',
       options: [
-        { label: 'ACTIVE', value: 'ACTIVE' },
-        { label: 'TRIAL', value: 'TRIAL' },
-        { label: 'SUSPENDED', value: 'SUSPENDED' },
+        { label: 'ACTIVE (Unlocked / Normal Access)', value: 'ACTIVE' },
+        { label: 'SUSPENDED (Locked / Login Blocked)', value: 'SUSPENDED' },
+        { label: 'INACTIVE (Disabled)', value: 'INACTIVE' },
       ],
       defaultValue: 'ACTIVE',
     },
@@ -177,6 +184,8 @@ export const TenantsPage: React.FC = () => {
     }
   };
 
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error'>('success');
+
   const handleSaveModal = async (formValues: Record<string, any>) => {
     try {
       if (editingTenant) {
@@ -187,7 +196,17 @@ export const TenantsPage: React.FC = () => {
           body: JSON.stringify(formValues),
         });
         const data = await res.json();
-        setAlertMsg(data.message || `Updated tenant ${formValues.name} successfully.`);
+        let msg = data.message || `Updated tenant ${formValues.name} successfully.`;
+        if (msg.startsWith('{')) {
+          try { msg = JSON.parse(msg).message || msg; } catch (_) {}
+        }
+        if (data && data.status === false) {
+          setAlertSeverity('error');
+          setAlertMsg(msg);
+          return;
+        }
+        setAlertSeverity('success');
+        setAlertMsg(msg);
       } else {
         const res = await fetch(`${getApiBaseUrl()}/settings/tenants`, {
           method: 'POST',
@@ -195,15 +214,22 @@ export const TenantsPage: React.FC = () => {
           body: JSON.stringify(formValues),
         });
         const data = await res.json();
-        if (data && data.status) {
-          setAlertMsg(data.message || `Added new client store tenant: ${formValues.name}`);
-        } else {
-          setAlertMsg(`Error: ${data.message || 'Could not register tenant'}`);
+        let msg = data.message || `Added new client store tenant: ${formValues.name}`;
+        if (msg.startsWith('{')) {
+          try { msg = JSON.parse(msg).message || msg; } catch (_) {}
         }
+        if (data && data.status === false) {
+          setAlertSeverity('error');
+          setAlertMsg(msg);
+          return;
+        }
+        setAlertSeverity('success');
+        setAlertMsg(msg);
       }
       fetchTenants();
       setOpenModal(false);
     } catch (err: any) {
+      setAlertSeverity('error');
       setAlertMsg(`Error saving tenant: ${err.message}`);
     }
   };
@@ -227,7 +253,7 @@ export const TenantsPage: React.FC = () => {
         />
 
         {alertMsg && (
-          <Alert severity="success" sx={{ mb: 3, borderRadius: '8px' }} onClose={() => setAlertMsg('')}>
+          <Alert severity={alertSeverity} sx={{ mb: 3, borderRadius: '8px' }} onClose={() => setAlertMsg('')}>
             {alertMsg}
           </Alert>
         )}
