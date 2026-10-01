@@ -131,6 +131,11 @@ export const SettingsPage: React.FC = () => {
   const [supportWhatsapp, setSupportWhatsapp] = useState('+91 98765 43210');
   const [supportHours, setSupportHours] = useState('9:00 AM - 9:00 PM');
 
+  // WhatsApp Server Cloud Gateway State
+  const [whatsappGatewayUrl, setWhatsappGatewayUrl] = useState('https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}');
+  const [whatsappInstanceId, setWhatsappInstanceId] = useState('');
+  const [whatsappApiKey, setWhatsappApiKey] = useState('');
+
   // SaaS Account Subscription State
   const [saasPlan, setSaasPlan] = useState(currentClient.plan);
   const [accountStatus, setAccountStatus] = useState(currentClient.activeStatus);
@@ -205,6 +210,10 @@ export const SettingsPage: React.FC = () => {
             setSupportWhatsapp(config.supportWhatsapp || config.SupportWhatsapp || currentClient.ownerPhone);
             setSupportHours(config.supportHours || config.SupportHours || '9:00 AM - 9:00 PM');
 
+            setWhatsappGatewayUrl(config.whatsappGatewayUrl || config.WhatsappGatewayUrl || 'https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}');
+            setWhatsappInstanceId(config.whatsappInstanceId || config.WhatsappInstanceId || '');
+            setWhatsappApiKey(config.whatsappApiKey || config.WhatsappApiKey || '');
+
             setSaasPlan(config.plan || currentClient.plan);
             setAccountStatus(config.activeStatus || currentClient.activeStatus);
             setOwnerName(config.ownerName || currentClient.ownerName);
@@ -269,6 +278,9 @@ export const SettingsPage: React.FC = () => {
       supportEmail,
       supportWhatsapp,
       supportHours,
+      whatsappGatewayUrl,
+      whatsappInstanceId,
+      whatsappApiKey,
       plan: saasPlan,
       activeStatus: accountStatus,
       ownerName,
@@ -719,9 +731,9 @@ export const SettingsPage: React.FC = () => {
               </Box>
             )}
 
-            {/* Tab 2: Customer Support Contact */}
+            {/* Tab 2: Customer Support Contact & Server WhatsApp Gateway */}
             {activeTab === 2 && (
-              <Box maxWidth={600}>
+              <Box maxWidth={700}>
                 <Typography variant="h6" fontWeight="800" color="#0F172A" mb={2}>
                   SaaS Helpline & Support Contacts ({currentClient.name})
                 </Typography>
@@ -730,6 +742,48 @@ export const SettingsPage: React.FC = () => {
                   <TextField fullWidth size="small" label="Support Email Address" value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} />
                   <TextField fullWidth size="small" label="Support WhatsApp Helpline" value={supportWhatsapp} onChange={(e) => setSupportWhatsapp(e.target.value)} />
                   <TextField fullWidth size="small" label="Helpline Operating Hours" value={supportHours} onChange={(e) => setSupportHours(e.target.value)} />
+                </Box>
+
+                <Divider sx={{ my: 4 }} />
+
+                <Typography variant="h6" fontWeight="800" color="#166534" mb={1}>
+                  🟢 WhatsApp Server Cloud Gateway API Credentials
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mb={3}>
+                  Configure Green-API / Meta Cloud API credentials saved directly into SQL Database table (V_TenantConfigurations) for server-side automated receipt dispatch.
+                </Typography>
+                <Box display="flex" flexDirection="column" gap={2} mb={3}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="WhatsApp Gateway API URL"
+                    value={whatsappGatewayUrl}
+                    onChange={(e) => setWhatsappGatewayUrl(e.target.value)}
+                    helperText="e.g. https://api.green-api.com/waInstance{idInstance}/sendMessage/{apiTokenInstance}"
+                  />
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="WhatsApp Instance ID (waInstance)"
+                        value={whatsappInstanceId}
+                        onChange={(e) => setWhatsappInstanceId(e.target.value)}
+                        placeholder="e.g. 7103123456"
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="password"
+                        label="WhatsApp API Token / Key"
+                        value={whatsappApiKey}
+                        onChange={(e) => setWhatsappApiKey(e.target.value)}
+                        placeholder="e.g. 9a8b7c6d5e..."
+                      />
+                    </Grid>
+                  </Grid>
                 </Box>
               </Box>
             )}
