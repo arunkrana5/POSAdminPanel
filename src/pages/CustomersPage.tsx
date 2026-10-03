@@ -198,6 +198,24 @@ export const CustomersPage: React.FC = () => {
     setPaymentCustomer(null);
   };
 
+    // Ledger View Modal
+  const [ledgerCustomer, setLedgerCustomer] = useState<CustomerRow | null>(null);
+  const [ledgerTransactions, setLedgerTransactions] = useState<any[]>([]);
+  const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+
+  const handleOpenLedger = async (c: CustomerRow) => {
+    setLedgerCustomer(c);
+    setIsLoadingLedger(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/customers/${c.id || c.name}/ledger`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setLedgerTransactions(data.transactions || []);
+      }
+    } catch (_) {}
+    setIsLoadingLedger(false);
+  };
+
   return (
     <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
       <HeaderNav />
@@ -230,7 +248,7 @@ export const CustomersPage: React.FC = () => {
           keyExtractor={(row) => row.id}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
-          onView={(row) => setPaymentCustomer(row)}
+          onView={(row) => handleOpenLedger(row)}
           isLoading={isLoading}
           emptyMessage="No customers found in directory."
         />
@@ -257,6 +275,117 @@ export const CustomersPage: React.FC = () => {
             onSubmit={handleRecordPaymentSubmit}
             submitLabel="Save Payment"
           />
+        )}
+
+        {/* Date-wise Udhaar Ledger Statement Modal */}
+        {ledgerCustomer && (
+          <React.Fragment>
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                zIndex: 1300,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+              }}
+            >
+              <Box
+                sx={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '16px',
+                  maxWidth: '850px',
+                  width: '100%',
+                  maxHeight: '90vh',
+                  overflowY: 'auto',
+                  p: 3,
+                  boxShadow: 24,
+                }}
+              >
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h6" fontWeight="800" color="#0F172A">
+                    Udhaar Ledger Statement - {ledgerCustomer.name}
+                  </Typography>
+                  <button
+                    onClick={() => setLedgerCustomer(null)}
+                    style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748B' }}
+                  >
+                    ✕
+                  </button>
+                </Box>
+                <Typography variant="body2" color="text.secondary" mb={2}>
+                  Phone: <strong>{ledgerCustomer.phone}</strong> | Village: <strong>{ledgerCustomer.village}</strong> | Current Balance: <span style={{ color: '#DC2626', fontWeight: 800 }}>₹ {ledgerCustomer.udhaar.toFixed(2)}</span>
+                </Typography>
+
+                <Box display="flex" justifyContent="flex-end" mb={2}>
+                  <button
+                    onClick={() => {
+                      const cust = ledgerCustomer;
+                      setLedgerCustomer(null);
+                      setPaymentCustomer(cust);
+                    }}
+                    style={{
+                      backgroundColor: '#059669',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    + Record Payment
+                  </button>
+                </Box>
+
+                {isLoadingLedger ? (
+                  <Typography variant="body2" color="text.secondary" align="center" py={4}>
+                    Loading date-wise transactions...
+                  </Typography>
+                ) : ledgerTransactions.length === 0 ? (
+                  <Alert severity="info" sx={{ borderRadius: '8px' }}>
+                    No date-wise ledger transactions found for this customer.
+                  </Alert>
+                ) : (
+                  <Box sx={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#F1F5F9', textAlign: 'left', height: '40px' }}>
+                          <th style={{ padding: '8px 12px', color: '#475569' }}>Date & Time</th>
+                          <th style={{ padding: '8px 12px', color: '#475569' }}>Transaction Details</th>
+                          <th style={{ padding: '8px 12px', color: '#475569', textAlign: 'right' }}>Debit (+)</th>
+                          <th style={{ padding: '8px 12px', color: '#475569', textAlign: 'right' }}>Credit (-)</th>
+                          <th style={{ padding: '8px 12px', color: '#475569', textAlign: 'right' }}>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledgerTransactions.map((tx: any, idx: number) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9', height: '42px' }}>
+                            <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{tx.date}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{tx.description}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: tx.debit > 0 ? '#DC2626' : '#94A3B8', fontWeight: tx.debit > 0 ? 'bold' : 'normal' }}>
+                              {tx.debit > 0 ? `₹ ${tx.debit.toFixed(2)}` : '-'}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: tx.credit > 0 ? '#059669' : '#94A3B8', fontWeight: tx.credit > 0 ? 'bold' : 'normal' }}>
+                              {tx.credit > 0 ? `₹ ${tx.credit.toFixed(2)}` : '-'}
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 'bold' }}>
+                              ₹ {tx.balance.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Box>
+                )}
+              </Box>
+            </div>
+          </React.Fragment>
         )}
       </Container>
     </Box>
