@@ -26,6 +26,12 @@ interface GenericDataTableProps<T> {
   isLoading?: boolean;
   emptyMessage?: string;
   rowsPerPageDefault?: number;
+  serverSide?: boolean;
+  totalCount?: number;
+  page?: number;
+  rowsPerPage?: number;
+  onPageChange?: (newPage: number) => void;
+  onRowsPerPageChange?: (newRowsPerPage: number) => void;
 }
 
 export function GenericDataTable<T extends Record<string, any>>({
@@ -37,22 +43,42 @@ export function GenericDataTable<T extends Record<string, any>>({
   onView,
   isLoading = false,
   emptyMessage = 'No records found in database.',
-  rowsPerPageDefault = 10,
+  rowsPerPageDefault = 25,
+  serverSide = false,
+  totalCount,
+  page: controlledPage,
+  rowsPerPage: controlledRowsPerPage,
+  onPageChange,
+  onRowsPerPageChange,
 }: GenericDataTableProps<T>) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(rowsPerPageDefault);
+  const [internalPage, setInternalPage] = useState(0);
+  const [internalRowsPerPage, setInternalRowsPerPage] = useState(rowsPerPageDefault);
+
+  const currentPage = serverSide ? (controlledPage ?? 0) : internalPage;
+  const currentRowsPerPage = serverSide ? (controlledRowsPerPage ?? rowsPerPageDefault) : internalRowsPerPage;
 
   const handleChangePage = (_: unknown, newPage: number) => {
-    setPage(newPage);
+    if (serverSide) {
+      onPageChange?.(newPage);
+    } else {
+      setInternalPage(newPage);
+    }
   };
 
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
+    const val = parseInt(event.target.value, 10);
+    if (serverSide) {
+      onRowsPerPageChange?.(val);
+    } else {
+      setInternalRowsPerPage(val);
+      setInternalPage(0);
+    }
   };
 
-  const paginatedData = data.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  const displayData = serverSide ? data : data.slice(currentPage * currentRowsPerPage, currentPage * currentRowsPerPage + currentRowsPerPage);
   const hasActions = Boolean(onEdit || onDelete || onView);
+  const effectiveCount = serverSide ? (totalCount ?? data.length) : data.length;
+
 
   return (
     <Paper elevation={0} sx={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
@@ -104,7 +130,7 @@ export function GenericDataTable<T extends Record<string, any>>({
                   </Typography>
                 </TableCell>
               </TableRow>
-            ) : paginatedData.length === 0 ? (
+            ) : displayData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length + (hasActions ? 1 : 0)} align="center" sx={{ py: 6 }}>
                   <Typography variant="body2" color="text.secondary" fontWeight="500">
@@ -113,7 +139,7 @@ export function GenericDataTable<T extends Record<string, any>>({
                 </TableCell>
               </TableRow>
             ) : (
-              paginatedData.map((row) => {
+              displayData.map((row) => {
                 const rowKey = keyExtractor(row);
                 return (
                   <TableRow
@@ -178,9 +204,9 @@ export function GenericDataTable<T extends Record<string, any>>({
       <TablePagination
         rowsPerPageOptions={[5, 10, 25, 50]}
         component="div"
-        count={data.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
+        count={effectiveCount}
+        rowsPerPage={currentRowsPerPage}
+        page={currentPage}
         onPageChange={handleChangePage}
         onRowsPerPageChange={handleChangeRowsPerPage}
         sx={{ borderTop: '1px solid #E2E8F0', bgcolor: '#FAF5FF' }}
@@ -188,3 +214,4 @@ export function GenericDataTable<T extends Record<string, any>>({
     </Paper>
   );
 }
+

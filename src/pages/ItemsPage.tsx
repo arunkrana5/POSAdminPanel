@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Chip, Typography, Alert, Container } from '@mui/material';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import ScaleIcon from '@mui/icons-material/Scale';
@@ -9,6 +9,8 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface ItemRow {
@@ -22,46 +24,79 @@ export interface ItemRow {
 }
 
 export const ItemsPage: React.FC = () => {
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
   const [items, setItems] = useState<ItemRow[]>([]);
-
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
   const [openModal, setOpenModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRow | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => {
-    fetchItems();
-  }, []);
-
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async (tenantIdOverride?: number, pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
+    setIsLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/Items?_t=${Date.now()}`, {
-        headers: getAuthHeaders(),
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+      });
+      if (tid) params.append('tenantId', String(tid));
+      if (selectedTenantCode) params.append('tenantCode', selectedTenantCode);
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
+
+      const res = await fetch(`${getApiBaseUrl()}/Items?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+          ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+        },
       });
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) {
-          const mapped: ItemRow[] = data.map((d: any) => ({
-            id: (d.id || d.ID || '').toString(),
-            itemCode: d.itemCode || d.ItemCode || '',
-            name: d.name || d.Name || '',
-            category: d.category || d.Category || 'General',
-            uom: d.unit || d.Unit || 'pcs',
-            format: (d.format || d.Format || 'Packed') === 'Loose' ? 'Loose' : 'Packed',
-            description: d.description || d.Description || '',
-          }));
-          setItems(mapped);
-        }
+        const rawList = Array.isArray(data) ? data : (data?.items || []);
+        const mapped: ItemRow[] = rawList.map((d: any) => ({
+          id: (d.id || d.ID || '').toString(),
+          itemCode: d.itemCode || d.ItemCode || '',
+          name: d.name || d.Name || '',
+          category: d.category || d.Category || 'General',
+          uom: d.unit || d.Unit || 'pcs',
+          format: (d.format || d.Format || 'Packed') === 'Loose' ? 'Loose' : 'Packed',
+          description: d.description || d.Description || '',
+        }));
+        setItems(mapped);
+        setTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : mapped.length);
+      } else {
+        setItems([]);
+        setTotalCount(0);
       }
-    } catch (_) {}
-  };
+    } catch (_) {
+      setItems([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode, page, rowsPerPage, searchQuery]);
 
-  const filteredItems = items.filter(
-    (i) =>
-      i.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.itemCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      i.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    fetchItems(selectedTenantId, 0, rowsPerPage, searchQuery);
+  }, [selectedTenantId, searchQuery]);
+
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchItems(e.detail.tenantId, 0, rowsPerPage, searchQuery);
+      }
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchItems, rowsPerPage, searchQuery]);
+
+  const filteredItems = items;
+
 
   const looseCount = items.filter((i) => i.format === 'Loose').length;
 
@@ -152,20 +187,29 @@ export const ItemsPage: React.FC = () => {
   };
 
   const handleDelete = async (item: ItemRow) => {
+    if (!window.confirm(`Are you sure you want to delete item "${item.name}"?`)) return;
     try {
       await fetch(`${getApiBaseUrl()}/Items/${item.id}`, {
         method: 'DELETE',
-        headers: getAuthHeaders(),
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(selectedTenantId),
+        },
       });
-    } catch (_) {}
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    setAlertMsg(`Item ${item.name} removed.`);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setAlertMsg(`Item "${item.name}" deleted successfully.`);
+    } catch (_) {
+      setAlertMsg(`Failed to delete item "${item.name}".`);
+    }
   };
 
   const handleSaveModal = async (formValues: Record<string, any>) => {
     const payload = {
+      tenantId: selectedTenantId,
+      tenantCode: selectedTenantCode,
       itemCode: formValues.itemCode,
       name: formValues.name,
+      itemName: formValues.name,
       category: formValues.category,
       unit: formValues.uom,
       format: formValues.format || 'Packed',
@@ -174,52 +218,36 @@ export const ItemsPage: React.FC = () => {
 
     if (editingItem) {
       try {
-        await fetch(`${getApiBaseUrl()}/Items/${editingItem.id}`, {
+        const res = await fetch(`${getApiBaseUrl()}/Items/${editingItem.id}`, {
           method: 'PUT',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json',
+            'X-Tenant-Id': String(selectedTenantId),
+          },
           body: JSON.stringify({ ...payload, id: Number(editingItem.id) }),
         });
+        if (res.ok) {
+          fetchItems(selectedTenantId);
+          setAlertMsg(`Item "${formValues.name}" updated successfully.`);
+        }
       } catch (_) {}
-
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === editingItem.id
-            ? {
-                ...i,
-                itemCode: formValues.itemCode,
-                name: formValues.name,
-                category: formValues.category,
-                uom: formValues.uom,
-                format: formValues.format,
-                description: formValues.description,
-              }
-            : i
-        )
-      );
-      setAlertMsg(`Item ${formValues.name} updated.`);
     } else {
       try {
         const res = await fetch(`${getApiBaseUrl()}/Items`, {
           method: 'POST',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json',
+            'X-Tenant-Id': String(selectedTenantId),
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          fetchItems();
+          fetchItems(selectedTenantId);
+          setAlertMsg(`New Item "${formValues.name}" created for ${selectedTenantName}.`);
         }
       } catch (_) {}
-
-      const newItem: ItemRow = {
-        id: `${items.length + 1}`,
-        itemCode: formValues.itemCode || `ITM-${1000 + Math.floor(Math.random() * 9000)}`,
-        name: formValues.name,
-        category: formValues.category,
-        uom: formValues.uom,
-        format: formValues.format || 'Packed',
-        description: formValues.description,
-      };
-      setItems((prev) => [newItem, ...prev]);
-      setAlertMsg(`New Item ${formValues.name} added.`);
     }
     setOpenModal(false);
   };
@@ -227,10 +255,12 @@ export const ItemsPage: React.FC = () => {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#F8FAFC' }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ pt: 3, pb: 6 }}>
+      <Container maxWidth="xl" sx={{ pt: 2, pb: 6 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchItems(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Items Directory"
-          subtitle="Core Item definitions (Item Code, Name, Category, UOM & Format). Pricing, Barcode & Stock Entry are managed separately under Stock In."
+          title="Items Directory (आइटम मास्टर)"
+          subtitle={`Managing master catalog for: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}). Core Item definitions with Edit/Delete options.`}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search Item Code, Name, Category..."
@@ -256,8 +286,23 @@ export const ItemsPage: React.FC = () => {
             keyExtractor={(r) => r.id}
             onEdit={handleOpenEdit}
             onDelete={handleDelete}
-            emptyMessage="No items defined."
+            isLoading={isLoading}
+            serverSide={true}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            totalCount={totalCount}
+            onPageChange={(newPage) => {
+              setPage(newPage);
+              fetchItems(selectedTenantId, newPage, rowsPerPage);
+            }}
+            onRowsPerPageChange={(newRows) => {
+              setRowsPerPage(newRows);
+              setPage(0);
+              fetchItems(selectedTenantId, 0, newRows);
+            }}
+            emptyMessage={`No items found for ${selectedTenantName}. Click "Define New Item" above to add products to this store.`}
           />
+
         </Box>
       </Container>
 

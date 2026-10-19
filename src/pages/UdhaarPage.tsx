@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Typography, Alert, Chip } from '@mui/material';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -8,6 +8,8 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal } from '../components/common/GenericFormModal';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface UdhaarRow {
@@ -22,62 +24,102 @@ export interface UdhaarRow {
 }
 
 export const UdhaarPage: React.FC = () => {
-  const [udhaarList, setUdhaarList] = useState<UdhaarRow[]>([
-    { id: 'UDH-001', customerName: 'Ramesh Kumar', phone: '+91 98765 43210', village: 'Rampur', outstandingAmount: 2400.0, dueDate: '20 Sep 2026', riskLevel: 'HIGH', status: 'PENDING_CREDIT' },
-    { id: 'UDH-002', customerName: 'Suresh Patel', phone: '+91 98123 45678', village: 'Rampur', outstandingAmount: 1200.0, dueDate: '25 Sep 2026', riskLevel: 'MEDIUM', status: 'PENDING_CREDIT' },
-    { id: 'UDH-003', customerName: 'Vikas Verma', phone: '+91 99887 76655', village: 'Kisan Nagar', outstandingAmount: 880.0, dueDate: '30 Sep 2026', riskLevel: 'LOW', status: 'PENDING_CREDIT' },
-  ]);
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
+  const [udhaarList, setUdhaarList] = useState<UdhaarRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalUdhaarSum, setTotalUdhaarSum] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<UdhaarRow | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  React.useEffect(() => {
-    fetchUdhaarCustomers();
-  }, []);
-
-  const fetchUdhaarCustomers = async () => {
-    setIsLoading(true);
+  const fetchMetrics = useCallback(async (tenantIdOverride?: number) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
     try {
-      const res = await fetch(`${getApiBaseUrl()}/customers`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/reports/dashboard-metrics?tenantId=${tid}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+        },
+      });
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const debtors: UdhaarRow[] = data
-            .filter((c: any) => c.udhaar > 0)
-            .map((c: any) => ({
-              id: `UDH-${c.id}`,
-              customerName: c.name,
-              phone: c.phone,
-              village: c.village || 'Rampur',
-              outstandingAmount: c.udhaar,
-              dueDate: c.lastTx || 'End of Month',
-              riskLevel: (c.udhaar > 2000 ? 'HIGH' : c.udhaar > 1000 ? 'MEDIUM' : 'LOW') as 'HIGH' | 'MEDIUM' | 'LOW',
-              status: c.status || 'PENDING_CREDIT',
-            }));
-          if (debtors.length > 0) {
-            setUdhaarList(debtors);
-          }
-        }
+        const d = await res.json();
+        setTotalUdhaarSum(d.totalUdhaar || 0);
       }
     } catch (_) {}
-    setIsLoading(false);
-  };
+  }, [selectedTenantId]);
 
-  const filtered = udhaarList.filter(
-    (u) =>
-      u.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.phone.includes(searchQuery) ||
-      u.village.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchUdhaarCustomers = useCallback(async (tenantIdOverride?: number, pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+        udhaarOnly: 'true',
+      });
+      if (tid) params.append('tenantId', String(tid));
+      if (selectedTenantCode) params.append('tenantCode', selectedTenantCode);
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
 
-  const totalOutstanding = udhaarList.reduce((sum, u) => sum + u.outstandingAmount, 0);
+      const res = await fetch(`${getApiBaseUrl()}/customers?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+          ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rawList = Array.isArray(data) ? data : (data?.items || []);
+        const debtors: UdhaarRow[] = rawList.map((c: any) => ({
+          id: `UDH-${c.id}`,
+          customerName: c.name,
+          phone: c.phone || c.mobile || '',
+          village: c.village || 'Rampur',
+          outstandingAmount: c.udhaar || c.currentBalance || 0,
+          dueDate: c.lastTx || 'End of Month',
+          riskLevel: ((c.udhaar || c.currentBalance || 0) > 2000 ? 'HIGH' : (c.udhaar || c.currentBalance || 0) > 1000 ? 'MEDIUM' : 'LOW') as 'HIGH' | 'MEDIUM' | 'LOW',
+          status: c.status || 'PENDING_CREDIT',
+        }));
+        setUdhaarList(debtors);
+        setTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : debtors.length);
+      } else {
+        setUdhaarList([]);
+        setTotalCount(0);
+      }
+    } catch (_) {
+      setUdhaarList([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode, page, rowsPerPage, searchQuery]);
+
+  useEffect(() => {
+    fetchUdhaarCustomers(selectedTenantId, 0, rowsPerPage, searchQuery);
+    fetchMetrics(selectedTenantId);
+  }, [selectedTenantId, searchQuery]);
+
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchUdhaarCustomers(e.detail.tenantId, 0, rowsPerPage, searchQuery);
+        fetchMetrics(e.detail.tenantId);
+      }
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchUdhaarCustomers, fetchMetrics, rowsPerPage, searchQuery]);
 
   const statsItems: StatItem[] = [
-    { id: 'total', title: 'Total Market Udhaar Credit', value: `₹ ${totalOutstanding.toFixed(2)}`, change: `${udhaarList.length} outstanding accounts`, icon: <AccountBalanceWalletIcon />, borderAccentColor: '#EF4444' },
+    { id: 'total', title: 'Total Market Udhaar Credit', value: `₹ ${totalUdhaarSum.toFixed(2)}`, change: `${totalCount} outstanding accounts`, icon: <AccountBalanceWalletIcon />, borderAccentColor: '#EF4444' },
     { id: 'high_risk', title: 'High Risk / Overdue', value: udhaarList.filter((u) => u.riskLevel === 'HIGH').length, subtitle: 'Requires payment reminder', icon: <WarningAmberIcon />, borderAccentColor: '#D97706' },
-    { id: 'avg', title: 'Average Credit Per Customer', value: `₹ ${(totalOutstanding / (udhaarList.length || 1)).toFixed(2)}`, subtitle: 'Controlled credit limit', icon: <CheckCircleIcon />, borderAccentColor: '#2563EB' },
+    { id: 'avg', title: 'Average Credit Per Customer', value: `₹ ${(totalUdhaarSum / (totalCount || 1)).toFixed(2)}`, subtitle: 'Controlled credit limit', icon: <CheckCircleIcon />, borderAccentColor: '#2563EB' },
   ];
 
   const columns: ColumnDef<UdhaarRow>[] = [
@@ -128,15 +170,20 @@ export const UdhaarPage: React.FC = () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/customers/payment`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+          },
           body: JSON.stringify({
+            tenantId: selectedTenantId,
             customerName: selectedRecord.customerName,
             amountPaid: paid,
             remainingUdhaar: remaining,
           }),
         });
         if (res.ok) {
-          fetchUdhaarCustomers();
+          fetchUdhaarCustomers(selectedTenantId);
         }
       } catch (_) {}
       setAlertMsg(`Collected payment of ₹ ${paid.toFixed(2)} from ${selectedRecord.customerName}.`);
@@ -147,10 +194,12 @@ export const UdhaarPage: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
+      <Container maxWidth="xl" sx={{ mt: 2 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchUdhaarCustomers(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Market Credit & Udhaar Risk Management"
-          subtitle="Track outstanding market credit, payment promises, risk scores, and collection records"
+          title="Market Credit & Udhaar Risk Management (उधार खाता)"
+          subtitle={`Managing market credit & debtors for: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}).`}
           breadcrumbs={['Home', 'Ledger', 'Udhaar Risk Portal']}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -167,11 +216,24 @@ export const UdhaarPage: React.FC = () => {
 
         <GenericDataTable<UdhaarRow>
           columns={columns}
-          data={filtered}
+          data={udhaarList}
           keyExtractor={(row) => row.id}
           onView={(row) => setSelectedRecord(row)}
           isLoading={isLoading}
-          emptyMessage="No pending udhaar credit accounts."
+          serverSide={true}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+            fetchUdhaarCustomers(selectedTenantId, newPage, rowsPerPage, searchQuery);
+          }}
+          onRowsPerPageChange={(newRows) => {
+            setRowsPerPage(newRows);
+            setPage(0);
+            fetchUdhaarCustomers(selectedTenantId, 0, newRows, searchQuery);
+          }}
+          emptyMessage={`No pending udhaar credit accounts for ${selectedTenantName}.`}
         />
 
         {selectedRecord && (

@@ -13,6 +13,7 @@ import { CustomersPage } from './pages/CustomersPage';
 import { UdhaarPage } from './pages/UdhaarPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { MastersPage } from './pages/MastersPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ const MainLayout: React.FC = () => {
         <Route path="/items" element={<ProtectedRoute><ItemsPage /></ProtectedRoute>} />
         <Route path="/stock" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
         <Route path="/stock-in" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
+        <Route path="/masters" element={<ProtectedRoute><MastersPage /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
         <Route path="/udhaar" element={<ProtectedRoute><UdhaarPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />

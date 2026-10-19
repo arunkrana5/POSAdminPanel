@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Typography, Chip, Alert, MenuItem, TextField, Button, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import WarningIcon from '@mui/icons-material/Warning';
@@ -9,7 +9,10 @@ import { HeaderNav } from '../components/HeaderNav';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
+import { PaginatedServerSelect } from '../components/common/PaginatedServerSelect';
 
 export interface ProductRow {
   id: number;
@@ -35,10 +38,15 @@ export interface ProductRow {
 }
 
 export const StockPage: React.FC = () => {
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
   const [products, setProducts] = useState<ProductRow[]>([]);
-  const [availableItems, setAvailableItems] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
+
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Modal State
   const [openModal, setOpenModal] = useState(false);
@@ -65,11 +73,60 @@ export const StockPage: React.FC = () => {
     format: 'Packed',
   });
 
+  const fetchProducts = useCallback(async (tenantIdOverride?: number, pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+      });
+      if (tid) params.append('tenantId', String(tid));
+      if (selectedTenantCode) params.append('tenantCode', selectedTenantCode);
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
+
+      const res = await fetch(`${getApiBaseUrl()}/Stock?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+          ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+        },
+      });
+      if (res && res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data?.items || []);
+        setProducts(list.map((p: any) => ({
+          ...p,
+          status: (p.currentStock ?? 0) > 0 ? 'ACTIVE' : 'INACTIVE',
+          expiryDate: p.expiryDate ? String(p.expiryDate).split('T')[0] : '',
+        })));
+        setTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : list.length);
+      } else {
+        setProducts([]);
+        setTotalCount(0);
+      }
+    } catch (_) {
+      setProducts([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode, page, rowsPerPage, searchQuery]);
+
+  useEffect(() => {
+    fetchProducts(selectedTenantId, 0, rowsPerPage, searchQuery);
+  }, [selectedTenantId, searchQuery]);
+
+
   const handleQuickCreateItem = async () => {
     if (!quickItemForm.name.trim()) return;
     const payload = {
+      tenantId: selectedTenantId,
+      tenantCode: selectedTenantCode,
       itemCode: quickItemForm.itemCode,
       name: quickItemForm.name.trim(),
+      itemName: quickItemForm.name.trim(),
       category: quickItemForm.category.trim(),
       unit: quickItemForm.unit.trim(),
       format: quickItemForm.format,
@@ -79,7 +136,11 @@ export const StockPage: React.FC = () => {
     try {
       const res = await fetch(`${getApiBaseUrl()}/Items`, {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': String(selectedTenantId),
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -88,7 +149,6 @@ export const StockPage: React.FC = () => {
       }
     } catch (_) {}
 
-    setAvailableItems((prev) => [createdItem, ...prev]);
     setSelectedItemObj(createdItem);
     setOpenQuickItemModal(false);
     setQuickItemForm({
@@ -101,37 +161,18 @@ export const StockPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchItems();
-  }, []);
+    fetchProducts(selectedTenantId);
+  }, [selectedTenantId, fetchProducts]);
 
-  const fetchItems = async () => {
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/Items?_t=${Date.now()}`, { headers: getAuthHeaders() });
-      if (res && res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setAvailableItems(data);
-        }
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchProducts(e.detail.tenantId);
       }
-    } catch (_) {}
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/Stock?_t=${Date.now()}`, { headers: getAuthHeaders() });
-      if (res && res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setProducts(data.map((p) => ({
-            ...p,
-            status: (p.currentStock ?? 0) > 0 ? 'ACTIVE' : 'INACTIVE',
-            expiryDate: p.expiryDate ? String(p.expiryDate).split('T')[0] : '',
-          })));
-        }
-      }
-    } catch (_) {}
-  };
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchProducts]);
 
   const compressImageFile = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -166,14 +207,6 @@ export const StockPage: React.FC = () => {
       } catch (_) {}
     }
   };
-
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.productCode && p.productCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
 
   const lowStockCount = products.filter((p) => p.currentStock > 0 && p.currentStock <= (p.minimumStock || 5)).length;
   const outOfStockCount = products.filter((p) => p.currentStock === 0).length;
@@ -269,17 +302,28 @@ export const StockPage: React.FC = () => {
   };
 
   const handleDelete = async (product: ProductRow) => {
+    if (!window.confirm(`Are you sure you want to delete stock entry for "${product.name}"?`)) return;
     try {
-      await fetch(`${getApiBaseUrl()}/StockIn/${product.id}`, { method: 'DELETE', headers: getAuthHeaders() });
-    } catch (_) {}
-    setProducts((prev) => prev.filter((p) => p.id !== product.id));
-    setAlertMsg(`Stock item ${product.name} deleted.`);
+      await fetch(`${getApiBaseUrl()}/Stock/${product.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(selectedTenantId),
+        },
+      });
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+      setAlertMsg(`Stock item "${product.name}" deleted successfully.`);
+    } catch (_) {
+      setAlertMsg(`Failed to delete stock item "${product.name}".`);
+    }
   };
 
   const handleSaveModal = async () => {
     if (!selectedItemObj || !formFields.sellingPrice) return;
 
     const payload = {
+      tenantId: selectedTenantId,
+      tenantCode: selectedTenantCode,
       itemId: selectedItemObj.id ? Number(selectedItemObj.id) : undefined,
       productCode: selectedItemObj.itemCode || selectedItemObj.ItemCode,
       name: selectedItemObj.name || selectedItemObj.Name,
@@ -300,31 +344,31 @@ export const StockPage: React.FC = () => {
     try {
       const res = await fetch(`${getApiBaseUrl()}/Stock`, {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+          'X-Tenant-Id': String(selectedTenantId),
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        fetchProducts();
+        fetchProducts(selectedTenantId);
+        setAlertMsg(`Stock In submitted successfully for ${payload.name} (${selectedTenantName}).`);
       }
     } catch (_) {}
 
-    const newProd: ProductRow = {
-      id: products.length + 1,
-      ...payload,
-      status: payload.currentStock > 0 ? 'ACTIVE' : 'INACTIVE',
-    };
-    setProducts((prev) => [newProd, ...prev]);
-    setAlertMsg(`Stock In submitted for ${payload.name}.`);
     setOpenModal(false);
   };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#F8FAFC' }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ pt: 3, pb: 6 }}>
+      <Container maxWidth="xl" sx={{ pt: 2, pb: 6 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchProducts(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Stock In Directory"
-          subtitle="Select an Item definition, set stock rate, tax & upload product photo."
+          title="Stock In Directory (स्टॉक प्रबंधन)"
+          subtitle={`Managing stock & inventory for store: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}). Set stock rates, quantities, barcode & photos.`}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           searchPlaceholder="Search stock item, barcode..."
@@ -345,11 +389,25 @@ export const StockPage: React.FC = () => {
 
         <Box sx={{ mt: 4 }}>
           <GenericDataTable<ProductRow>
-            data={filteredProducts}
+            data={products}
             columns={columns}
             keyExtractor={(r) => r.id.toString()}
             onDelete={handleDelete}
-            emptyMessage="No stock inventory entries found."
+            isLoading={isLoading}
+            serverSide={true}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            totalCount={totalCount}
+            onPageChange={(newPage) => {
+              setPage(newPage);
+              fetchProducts(selectedTenantId, newPage, rowsPerPage);
+            }}
+            onRowsPerPageChange={(newRows) => {
+              setRowsPerPage(newRows);
+              setPage(0);
+              fetchProducts(selectedTenantId, 0, newRows);
+            }}
+            emptyMessage={`No stock inventory entries found for ${selectedTenantName}. Click "Stock In Entry" above to add inventory.`}
           />
         </Box>
       </Container>
@@ -370,9 +428,9 @@ export const StockPage: React.FC = () => {
 
             {/* STEP 1: Select Item Dropdown */}
             <Box sx={{ p: 2, bgcolor: '#EFF6FF', borderRadius: '8px', border: '1.5px solid #93C5FD', mb: 2 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
                 <Typography variant="subtitle2" fontWeight="700" color="#1E40AF">
-                  1. Select Item from Catalog *
+                  1. Select Item from Catalog (Server Paginated) *
                 </Typography>
                 <Button
                   size="small"
@@ -384,31 +442,41 @@ export const StockPage: React.FC = () => {
                   + Create New Item
                 </Button>
               </Box>
-              {availableItems.length === 0 ? (
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  No items found in your catalog. Click <strong>"+ Create New Item"</strong> above to add an item!
-                </Alert>
-              ) : (
-                <TextField
-                  select
-                  fullWidth
-                  size="small"
-                  label="Choose Item"
-                  value={selectedItemObj ? (selectedItemObj.id || selectedItemObj.ID || '') : ''}
-                  onChange={(e) => {
-                    const found = availableItems.find((i) => (i.id || i.ID || '').toString() === e.target.value);
-                    if (found) setSelectedItemObj(found);
-                  }}
-                  sx={{ bgcolor: '#FFFFFF' }}
-                >
-                  {availableItems.map((item) => (
-                    <MenuItem key={item.id || item.ID} value={(item.id || item.ID).toString()}>
-                      {item.name || item.Name} ({item.category || item.Category} • {item.unit || item.Unit || 'pcs'})
-                    </MenuItem>
-                  ))}
-                </TextField>
-              )}
+
+              <PaginatedServerSelect
+                label="Choose Item"
+                value={selectedItemObj ? (selectedItemObj.id || selectedItemObj.ID || '') : ''}
+                selectedDisplayLabel={selectedItemObj ? `${selectedItemObj.name || selectedItemObj.Name} (${selectedItemObj.category || selectedItemObj.Category || 'General'} • ${selectedItemObj.unit || selectedItemObj.Unit || 'pcs'})` : undefined}
+                onChange={(_, item) => {
+                  setSelectedItemObj(item || null);
+                }}
+                fetchOptions={async ({ page, pageSize, search }) => {
+                  const params = new URLSearchParams({
+                    page: String(page),
+                    pageSize: String(pageSize),
+                    paged: 'true',
+                    tenantId: String(selectedTenantId),
+                  });
+                  if (search.trim()) params.append('search', search.trim());
+                  const res = await fetch(`${getApiBaseUrl()}/Items?${params.toString()}`, {
+                    headers: { ...getAuthHeaders(), 'X-Tenant-Id': String(selectedTenantId) },
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    return {
+                      items: Array.isArray(data) ? data : (data?.items || []),
+                      hasMore: data?.hasMore || false,
+                      totalCount: data?.totalCount || 0,
+                    };
+                  }
+                  return { items: [], hasMore: false, totalCount: 0 };
+                }}
+                itemLabel={(i) => `${i.name || i.Name}`}
+                itemValue={(i) => (i.id || i.ID).toString()}
+                itemSubtitle={(i) => `${i.itemCode || ''} • ${i.category || i.Category || 'General'} • ${i.unit || i.Unit || 'pcs'}`}
+              />
             </Box>
+
 
             {!selectedItemObj ? (
               <Alert severity="warning" sx={{ mb: 2 }}>

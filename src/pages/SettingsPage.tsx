@@ -12,12 +12,22 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ContactSupportIcon from '@mui/icons-material/ContactSupport';
 import BusinessIcon from '@mui/icons-material/Business';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import QrCodeIcon from '@mui/icons-material/QrCode';
 import { HeaderNav } from '../components/HeaderNav';
 import { PageHeader } from '../components/common/PageHeader';
 import { MobilePhonePreview, MobilePreviewConfig } from '../components/common/MobilePhonePreview';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
+
+export interface UpiAccountConfig {
+  id: string;
+  upiId: string;
+  accountName: string;
+  bankName: string;
+  label: string;
+  isDefault: boolean;
+}
 
 interface MenuItemConfig {
   id: string;
@@ -147,11 +157,28 @@ export const SettingsPage: React.FC = () => {
   const [menuItems, setMenuItems] = useState<MenuItemConfig[]>([
     { id: 'dashboard', titleEn: 'Dashboard', titleHi: 'डैशबोर्ड', icon: 'dashboard_rounded', route: '/home', isEnabled: true, badgeText: '' },
     { id: 'pos', titleEn: 'New Sale / POS', titleHi: 'नया बिल / POS', icon: 'point_of_sale_rounded', route: '/pos', isEnabled: true, badgeText: 'FAST' },
-    { id: 'products', titleEn: 'Products & Stock', titleHi: 'सामान और स्टॉक', icon: 'inventory_2_rounded', route: '/products', isEnabled: true, badgeText: '' },
-    { id: 'customers', titleEn: 'Customer Udhaar', titleHi: 'ग्राहक उधार खाता', icon: 'people_alt_rounded', route: '/customers', isEnabled: true, badgeText: '' },
+    { id: 'items', titleEn: 'Items & Catalog', titleHi: 'सामान (Items)', icon: 'assignment_rounded', route: '/items', isEnabled: true, badgeText: '' },
+    { id: 'stock', titleEn: 'Stock & Inventory', titleHi: 'स्टॉक (Stock)', icon: 'inventory_2_rounded', route: '/stock', isEnabled: true, badgeText: '' },
+    { id: 'sales-history', titleEn: 'Sale History & Invoices', titleHi: 'बिक्री इतिहास (Sale History)', icon: 'receipt_long_rounded', route: '/sales-history', isEnabled: true, badgeText: 'PRINT' },
+    { id: 'customers', titleEn: 'Customer Udhaar & Ledger', titleHi: 'ग्राहक उधार खाता (Ledger)', icon: 'people_alt_rounded', route: '/customers', isEnabled: true, badgeText: '' },
     { id: 'reports', titleEn: 'Reports & Earnings', titleHi: 'रिपोर्ट और कमाई', icon: 'analytics_rounded', route: '/reports', isEnabled: true, badgeText: '' },
-    { id: 'settings', titleEn: 'Settings', titleHi: 'सेटिंग्स', icon: 'settings_rounded', route: '/settings', isEnabled: true, badgeText: '' },
+    { id: 'masters', titleEn: 'Master Taxonomy', titleHi: 'मास्टर डेटा (Masters)', icon: 'category_rounded', route: '/masters', isEnabled: true, badgeText: '' },
+    { id: 'settings', titleEn: 'Store Settings', titleHi: 'सेटिंग्स', icon: 'settings_rounded', route: '/settings', isEnabled: true, badgeText: '' },
   ]);
+
+  // UPI QR Accounts State
+  const [upiAccounts, setUpiAccounts] = useState<UpiAccountConfig[]>([
+    {
+      id: 'upi_1',
+      upiId: '9876543210@upi',
+      accountName: 'Sharma General Store',
+      bankName: 'State Bank of India',
+      label: 'Primary Shop QR',
+      isDefault: true,
+    },
+  ]);
+  const [openUpiModal, setOpenUpiModal] = useState(false);
+  const [editingUpiAccount, setEditingUpiAccount] = useState<UpiAccountConfig | null>(null);
 
   const [alertMsg, setAlertMsg] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -224,6 +251,21 @@ export const SettingsPage: React.FC = () => {
             if (items && Array.isArray(items) && items.length > 0) {
               setMenuItems(items);
             }
+
+            const loadedUpi = config.upiAccounts || config.UpiAccounts;
+            if (loadedUpi && Array.isArray(loadedUpi) && loadedUpi.length > 0) {
+              setUpiAccounts(loadedUpi);
+            } else {
+              try {
+                const upiRes = await fetch(`${getApiBaseUrl()}/settings/upi-accounts?tenantId=${tenantId}`, { headers: getAuthHeaders() });
+                if (upiRes.ok) {
+                  const upiData = await upiRes.json();
+                  if (Array.isArray(upiData) && upiData.length > 0) {
+                    setUpiAccounts(upiData);
+                  }
+                }
+              } catch (_) {}
+            }
           } catch (_) {}
         }
       }
@@ -287,6 +329,7 @@ export const SettingsPage: React.FC = () => {
       ownerPhone,
       storesCount,
       menuItems,
+      upiAccounts,
     };
 
     try {
@@ -309,6 +352,14 @@ export const SettingsPage: React.FC = () => {
           }
         } catch (_) {}
       }
+
+      try {
+        await fetch(`${getApiBaseUrl()}/settings/upi-accounts?tenantId=${selectedTenantId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          body: JSON.stringify(upiAccounts),
+        });
+      } catch (_) {}
 
       if (!res) {
         throw new Error('Could not reach backend API');
@@ -409,6 +460,106 @@ export const SettingsPage: React.FC = () => {
     { name: 'icon', label: 'Icon Name', type: 'text', defaultValue: 'storefront_rounded', placeholder: 'e.g. local_offer, qr_code, point_of_sale_rounded' },
     { name: 'route', label: 'Mobile App Route', type: 'text', defaultValue: '/home', placeholder: 'e.g. /home, /pos, /products, /customers' },
     { name: 'badgeText', label: 'Badge Tag (Optional)', type: 'text', placeholder: 'e.g. FAST, NEW, 50% OFF' },
+  ];
+
+  const handleToggleDefaultUpi = (id: string) => {
+    setUpiAccounts(upiAccounts.map((u) => ({ ...u, isDefault: u.id === id })));
+  };
+
+  const handleDeleteUpiAccount = (item: UpiAccountConfig) => {
+    setUpiAccounts(upiAccounts.filter((u) => u.id !== item.id));
+  };
+
+  const handleOpenAddUpiModal = () => {
+    setEditingUpiAccount(null);
+    setOpenUpiModal(true);
+  };
+
+  const handleSaveUpiModalItem = (values: Record<string, any>) => {
+    const isDef = values.isDefault === true || values.isDefault === 'true';
+    if (editingUpiAccount) {
+      setUpiAccounts(
+        upiAccounts.map((u) => {
+          if (u.id === editingUpiAccount.id) {
+            return {
+              ...u,
+              upiId: values.upiId,
+              accountName: values.accountName,
+              bankName: values.bankName || 'Bank',
+              label: values.label || 'Shop UPI',
+              isDefault: isDef,
+            };
+          }
+          return isDef ? { ...u, isDefault: false } : u;
+        })
+      );
+    } else {
+      const newUpi: UpiAccountConfig = {
+        id: `upi_${Date.now()}`,
+        upiId: values.upiId,
+        accountName: values.accountName,
+        bankName: values.bankName || 'Bank',
+        label: values.label || 'Shop UPI',
+        isDefault: isDef || upiAccounts.length === 0,
+      };
+      const updated = isDef ? upiAccounts.map((u) => ({ ...u, isDefault: false })) : [...upiAccounts];
+      setUpiAccounts([...updated, newUpi]);
+    }
+    setOpenUpiModal(false);
+  };
+
+  const upiTableColumns: ColumnDef<UpiAccountConfig>[] = [
+    {
+      key: 'label',
+      header: 'Account Label / Beneficiary',
+      render: (r) => (
+        <Box>
+          <Typography variant="subtitle2" fontWeight="700" color="#0F172A">
+            {r.label}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {r.accountName}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'upiId',
+      header: 'UPI ID (VPA)',
+      render: (r) => (
+        <Typography variant="body2" fontFamily="monospace" fontWeight="700" color="#2563EB">
+          {r.upiId}
+        </Typography>
+      ),
+    },
+    {
+      key: 'bankName',
+      header: 'Bank / Provider',
+      render: (r) => (
+        <Chip label={r.bankName || 'Default Bank'} size="small" variant="outlined" sx={{ fontWeight: 600 }} />
+      ),
+    },
+    {
+      key: 'isDefault',
+      header: 'Default for POS QR',
+      align: 'center',
+      render: (r) => (
+        <Switch
+          checked={r.isDefault}
+          onChange={() => handleToggleDefaultUpi(r.id)}
+          color="success"
+          size="small"
+        />
+      ),
+    },
+  ];
+
+  const upiModalFields: FormFieldDef[] = [
+    { name: 'label', label: 'Counter / Account Label', type: 'text', required: true, defaultValue: 'Counter 1 QR', placeholder: 'e.g. Primary Shop Counter, Main Till' },
+    { name: 'upiId', label: 'Merchant UPI ID (VPA)', type: 'text', required: true, placeholder: 'e.g. 9876543210@upi, store@okaxis' },
+    { name: 'accountName', label: 'Beneficiary / Account Name', type: 'text', required: true, placeholder: 'e.g. Sharma Kirana & General Store' },
+    { name: 'bankName', label: 'Bank Name', type: 'text', defaultValue: 'State Bank of India', placeholder: 'e.g. SBI, HDFC Bank, ICICI Bank' },
+    { name: 'isDefault', label: 'Set as Default POS QR', type: 'switch', defaultValue: false },
   ];
 
   const previewConfig: MobilePreviewConfig = {
@@ -530,6 +681,7 @@ export const SettingsPage: React.FC = () => {
             <Tab icon={<ContactSupportIcon fontSize="small" />} iconPosition="start" label="3. Customer Support Contact" />
             <Tab icon={<MenuIcon fontSize="small" />} iconPosition="start" label="4. Dynamic Drawer Menu Builder" />
             <Tab icon={<BusinessIcon fontSize="small" />} iconPosition="start" label="5. SaaS Account & Plan Settings" />
+            <Tab icon={<QrCodeIcon fontSize="small" />} iconPosition="start" label="6. Dynamic UPI QR Accounts" />
           </Tabs>
 
           <Box p={3}>
@@ -865,6 +1017,37 @@ export const SettingsPage: React.FC = () => {
               </Box>
             )}
 
+            {/* Tab 5: Dynamic UPI QR Accounts */}
+            {activeTab === 5 && (
+              <Box>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Box>
+                    <Typography variant="h6" fontWeight="800" color="#0F172A">
+                      Dynamic UPI QR Payment Accounts ({currentClient.name})
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Manage merchant VPA accounts used by Flutter Client Web and Android POS to generate dynamic UPI QR codes during checkout.
+                    </Typography>
+                  </Box>
+                  <Button variant="contained" size="small" startIcon={<AddIcon />} onClick={handleOpenAddUpiModal}>
+                    Add UPI QR Account
+                  </Button>
+                </Box>
+
+                <GenericDataTable
+                  columns={upiTableColumns}
+                  data={upiAccounts}
+                  keyExtractor={(r) => r.id}
+                  onEdit={(r) => {
+                    setEditingUpiAccount(r);
+                    setOpenUpiModal(true);
+                  }}
+                  onDelete={(r) => handleDeleteUpiAccount(r)}
+                  emptyMessage="No UPI accounts configured. Add a merchant VPA to enable dynamic QR payments."
+                />
+              </Box>
+            )}
+
             <Divider sx={{ my: 4 }} />
             <Box display="flex" justifyContent="flex-end">
               <Button
@@ -890,6 +1073,16 @@ export const SettingsPage: React.FC = () => {
           initialValues={editingMenuItem || {}}
           onSubmit={handleSaveModalItem}
           submitLabel={editingMenuItem ? 'Update Menu Item' : 'Add Item'}
+        />
+
+        <GenericFormModal
+          open={openUpiModal}
+          onClose={() => setOpenUpiModal(false)}
+          title={editingUpiAccount ? `Edit UPI Account - ${editingUpiAccount.label}` : 'Add New Merchant UPI QR Account'}
+          fields={upiModalFields}
+          initialValues={editingUpiAccount || {}}
+          onSubmit={handleSaveUpiModalItem}
+          submitLabel={editingUpiAccount ? 'Update UPI Account' : 'Add UPI Account'}
         />
       </Container>
     </Box>

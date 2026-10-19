@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -29,6 +29,8 @@ import { HeaderNav } from '../components/HeaderNav';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface SaleRow {
@@ -44,49 +46,93 @@ export interface SaleRow {
 }
 
 export const SalesPage: React.FC = () => {
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [cashSales, setCashSales] = useState(0);
+  const [udhaarSales, setUdhaarSales] = useState(0);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [viewingSale, setViewingSale] = useState<SaleRow | null>(null);
 
-  useEffect(() => {
-    fetchSales();
-  }, []);
-
-  const fetchSales = async () => {
-    setIsLoading(true);
+  const fetchMetrics = useCallback(async (tenantIdOverride?: number) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
     try {
-      const tenantId = localStorage.getItem('tenant_id') || localStorage.getItem('tenantId') || '';
-      const tenantCode = localStorage.getItem('tenant_code') || localStorage.getItem('tenantCode') || '';
-      const params = new URLSearchParams();
-      if (tenantId) params.append('tenantId', tenantId);
-      if (tenantCode) params.append('tenantCode', tenantCode);
-
-      const qStr = params.toString() ? `?${params.toString()}` : '';
-      const res = await fetch(`${getApiBaseUrl()}/sales${qStr}`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/reports/dashboard-metrics?tenantId=${tid}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+        },
+      });
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setSales(data);
-        }
+        const d = await res.json();
+        setTotalRevenue(d.totalRevenue || 0);
+        setCashSales(d.cashSales || 0);
+        setUdhaarSales(d.udhaarSales || 0);
       }
     } catch (_) {}
-    setIsLoading(false);
-  };
+  }, [selectedTenantId]);
 
-  const filteredSales = sales.filter(
-    (s) =>
-      (s.customerName && s.customerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (s.id && s.id.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (s.paymentMode && s.paymentMode.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const fetchSales = useCallback(async (tenantIdOverride?: number, pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+      });
+      if (tid) params.append('tenantId', String(tid));
+      if (selectedTenantCode) params.append('tenantCode', selectedTenantCode);
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.totalAmount, 0);
-  const cashSales = sales.filter((s) => s.paymentMode === 'Cash').reduce((sum, s) => sum + s.totalAmount, 0);
-  const udhaarSales = sales.filter((s) => s.paymentMode === 'Udhaar').reduce((sum, s) => sum + s.totalAmount, 0);
+      const res = await fetch(`${getApiBaseUrl()}/sales?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+          ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rawList = Array.isArray(data) ? data : (data?.items || []);
+        setSales(rawList);
+        setTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : rawList.length);
+      } else {
+        setSales([]);
+        setTotalCount(0);
+      }
+    } catch (_) {
+      setSales([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode, page, rowsPerPage, searchQuery]);
+
+  useEffect(() => {
+    fetchSales(selectedTenantId, 0, rowsPerPage, searchQuery);
+    fetchMetrics(selectedTenantId);
+  }, [selectedTenantId, searchQuery]);
+
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchSales(e.detail.tenantId, 0, rowsPerPage, searchQuery);
+        fetchMetrics(e.detail.tenantId);
+      }
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchSales, fetchMetrics, rowsPerPage, searchQuery]);
 
   const statsItems: StatItem[] = [
-    { id: 'total', title: 'Total Sales Revenue', value: `₹ ${totalRevenue.toFixed(2)}`, change: `${sales.length} invoices generated`, icon: <ShoppingBagIcon />, borderAccentColor: '#2563EB' },
+    { id: 'total', title: 'Total Sales Revenue', value: `₹ ${totalRevenue.toFixed(2)}`, change: `${totalCount} invoices generated`, icon: <ShoppingBagIcon />, borderAccentColor: '#2563EB' },
     { id: 'cash', title: 'Cash Collections', value: `₹ ${cashSales.toFixed(2)}`, change: 'Liquid cash in counter', icon: <PaymentsIcon />, borderAccentColor: '#10B981' },
     { id: 'udhaar', title: 'Udhaar / Credit Sales', value: `₹ ${udhaarSales.toFixed(2)}`, change: 'Added to customer ledger', icon: <AccountBalanceWalletIcon />, borderAccentColor: '#D97706' },
   ];
@@ -136,7 +182,7 @@ export const SalesPage: React.FC = () => {
       sale.items.forEach((it, idx) => {
         const name = it.productName || it.name || 'Product Item';
         const qty = it.quantity || it.qty || 1;
-        const price = it.unitPrice || it.price || 0;
+        const price = (it as any).rate || it.unitPrice || it.price || 0;
         const tot = it.totalPrice || (qty * price);
         itemsRows += `
           <tr>
@@ -188,8 +234,8 @@ export const SalesPage: React.FC = () => {
     <table class="header-table">
       <tr>
         <td style="vertical-align: top;">
-          <div class="store-brand">VILLAGE POS STORE</div>
-          <div class="store-sub">Official Retail Point of Sale & Billing System</div>
+          <div class="store-brand">${selectedTenantName.toUpperCase()}</div>
+          <div class="store-sub">Official Retail Point of Sale & Billing System | Store Code: ${selectedTenantCode || 'T-' + selectedTenantId}</div>
         </td>
         <td style="vertical-align: top;">
           <div class="invoice-badge">TAX INVOICE</div>
@@ -205,7 +251,10 @@ export const SalesPage: React.FC = () => {
         <tr>
           <td>
             <div style="font-size: 11px; color: #64748B; font-weight: 700;">BILL TO (CUSTOMER):</div>
-            <div style="font-size: 16px; font-weight: 800; color: #0F172A; margin-top: 4px;">${sale.customerName || 'Walk-in Customer'}</div>
+            <div style="font-size: 16px; font-weight: 800; color: #0F172A; margin-top: 4px;">
+              ${sale.customerName || 'Walk-in Customer'}
+              ${((sale as any).customerMobile || (sale as any).customerPhone || (sale as any).phone) ? `<span style="font-size: 13px; font-weight: 500; color: #64748B;"> (${(sale as any).customerMobile || (sale as any).customerPhone || (sale as any).phone})</span>` : ''}
+            </div>
           </td>
           <td style="text-align: right; vertical-align: top;">
             <div style="font-size: 11px; color: #64748B; font-weight: 700;">BILLING STATUS:</div>
@@ -267,10 +316,12 @@ export const SalesPage: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
+      <Container maxWidth="xl" sx={{ mt: 2 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchSales(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Sales & Invoicing Transaction History"
-          subtitle="Audit all billing receipts, payment mode breakdowns, and customer purchases"
+          title="Sales & Invoicing History (बिक्री लेनदेन)"
+          subtitle={`Viewing sales transactions & tax invoices for: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}).`}
           breadcrumbs={['Home', 'Billing', 'Sales Transactions']}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -281,11 +332,24 @@ export const SalesPage: React.FC = () => {
 
         <GenericDataTable<SaleRow>
           columns={columns}
-          data={filteredSales}
+          data={sales}
           keyExtractor={(row) => row.id}
           onView={(row) => setViewingSale(row)}
           isLoading={isLoading}
-          emptyMessage="No sales transactions found."
+          serverSide={true}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+            fetchSales(selectedTenantId, newPage, rowsPerPage, searchQuery);
+          }}
+          onRowsPerPageChange={(newRows) => {
+            setRowsPerPage(newRows);
+            setPage(0);
+            fetchSales(selectedTenantId, 0, newRows, searchQuery);
+          }}
+          emptyMessage={`No sales transactions found for ${selectedTenantName}.`}
         />
 
         {/* Detailed Tax Invoice Modal with Close 'X' Cut Icon & Print A4 */}
@@ -308,10 +372,10 @@ export const SalesPage: React.FC = () => {
               <Box display="flex" justifyContent="space-between" mb={2}>
                 <Box>
                   <Typography variant="h6" fontWeight="800" color="#0F172A">
-                    VILLAGE POS STORE
+                    {selectedTenantName.toUpperCase()}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Official Tax Invoice & Sales Receipt
+                    Official Tax Invoice & Sales Receipt | Store #{selectedTenantId}
                   </Typography>
                 </Box>
                 <Box textAlign="right">

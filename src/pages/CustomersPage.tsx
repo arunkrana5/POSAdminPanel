@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Typography, Alert } from '@mui/material';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -9,6 +9,8 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface CustomerRow {
@@ -22,12 +24,12 @@ export interface CustomerRow {
 }
 
 export const CustomersPage: React.FC = () => {
-  const [customers, setCustomers] = useState<CustomerRow[]>([
-    { id: '1', name: 'Ramesh Kumar', phone: '+91 98765 43210', village: 'Rampur', udhaar: 2400.0, lastTx: '12 Sep 2026', status: 'PENDING_CREDIT' },
-    { id: '2', name: 'Suresh Patel', phone: '+91 98123 45678', village: 'Rampur', udhaar: 1200.0, lastTx: '11 Sep 2026', status: 'PENDING_CREDIT' },
-    { id: '3', name: 'Anita Sharma', phone: '+91 97654 32109', village: 'Meerut', udhaar: 0.0, lastTx: '10 Sep 2026', status: 'COMPLETED' },
-    { id: '4', name: 'Vikas Verma', phone: '+91 99887 76655', village: 'Kisan Nagar', udhaar: 880.0, lastTx: '09 Sep 2026', status: 'PENDING_CREDIT' },
-  ]);
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalUdhaarSum, setTotalUdhaarSum] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,45 +42,81 @@ export const CustomersPage: React.FC = () => {
   // Payment Modal
   const [paymentCustomer, setPaymentCustomer] = useState<CustomerRow | null>(null);
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
-    setIsLoading(true);
+  const fetchMetrics = useCallback(async (tenantIdOverride?: number) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
     try {
-      const tenantId = localStorage.getItem('tenant_id') || localStorage.getItem('tenantId') || '';
-      const tenantCode = localStorage.getItem('tenant_code') || localStorage.getItem('tenantCode') || '';
-      const params = new URLSearchParams();
-      if (tenantId) params.append('tenantId', tenantId);
-      if (tenantCode) params.append('tenantCode', tenantCode);
-
-      const qStr = params.toString() ? `?${params.toString()}` : '';
-      const res = await fetch(`${getApiBaseUrl()}/customers${qStr}`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/reports/dashboard-metrics?tenantId=${tid}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+        },
+      });
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setCustomers(data);
-        }
+        const d = await res.json();
+        setTotalUdhaarSum(d.totalUdhaar || 0);
       }
     } catch (_) {}
-    setIsLoading(false);
-  };
+  }, [selectedTenantId]);
 
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone.includes(searchQuery) ||
-      (c.village && c.village.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const fetchCustomers = useCallback(async (tenantIdOverride?: number, pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+      });
+      if (tid) params.append('tenantId', String(tid));
+      if (selectedTenantCode) params.append('tenantCode', selectedTenantCode);
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
 
-  const totalUdhaar = customers.reduce((sum, c) => sum + c.udhaar, 0);
+      const res = await fetch(`${getApiBaseUrl()}/customers?${params.toString()}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(tid),
+          ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rawList = Array.isArray(data) ? data : (data?.items || []);
+        setCustomers(rawList);
+        setTotalCount(typeof data?.totalCount === 'number' ? data.totalCount : rawList.length);
+      } else {
+        setCustomers([]);
+        setTotalCount(0);
+      }
+    } catch (_) {
+      setCustomers([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode, page, rowsPerPage, searchQuery]);
+
+  useEffect(() => {
+    fetchCustomers(selectedTenantId, 0, rowsPerPage, searchQuery);
+    fetchMetrics(selectedTenantId);
+  }, [selectedTenantId, searchQuery]);
+
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchCustomers(e.detail.tenantId, 0, rowsPerPage, searchQuery);
+        fetchMetrics(e.detail.tenantId);
+      }
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchCustomers, fetchMetrics, rowsPerPage, searchQuery]);
+
   const zeroBalanceCount = customers.filter((c) => c.udhaar === 0).length;
 
   const statsItems: StatItem[] = [
-    { id: 'total', title: 'Total Registered Customers', value: customers.length, change: '100% active accounts', icon: <PeopleAltIcon />, borderAccentColor: '#2563EB' },
-    { id: 'udhaar', title: 'Total Outstanding Udhaar', value: `₹ ${totalUdhaar.toFixed(2)}`, change: `${customers.length - zeroBalanceCount} active debtors`, icon: <AccountBalanceWalletIcon />, borderAccentColor: '#EF4444' },
-    { id: 'clear', title: 'Clear Balance Accounts', value: zeroBalanceCount, subtitle: 'Zero outstanding dues', icon: <CheckCircleIcon />, borderAccentColor: '#10B981' },
+    { id: 'total', title: 'Total Registered Customers', value: totalCount, change: '100% active accounts', icon: <PeopleAltIcon />, borderAccentColor: '#2563EB' },
+    { id: 'udhaar', title: 'Total Outstanding Udhaar', value: `₹ ${totalUdhaarSum.toFixed(2)}`, change: `Store-wide ledger dues`, icon: <AccountBalanceWalletIcon />, borderAccentColor: '#EF4444' },
+    { id: 'clear', title: 'Clear Balance Accounts', value: Math.max(0, totalCount - (customers.length - zeroBalanceCount)), subtitle: 'Zero outstanding dues', icon: <CheckCircleIcon />, borderAccentColor: '#10B981' },
   ];
 
   const columns: ColumnDef<CustomerRow>[] = [
@@ -131,10 +169,17 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleDelete = async (c: CustomerRow) => {
+    if (!window.confirm(`Are you sure you want to delete customer "${c.name}"?`)) return;
     try {
-      const res = await fetch(`${getApiBaseUrl()}/customers/${c.id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/customers/${c.id}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(selectedTenantId),
+        },
+      });
       if (res.ok) {
-        fetchCustomers();
+        fetchCustomers(selectedTenantId);
       }
     } catch (_) {}
     setCustomers(customers.filter((item) => item.id !== c.id));
@@ -143,6 +188,8 @@ export const CustomersPage: React.FC = () => {
 
   const handleSaveModal = async (formValues: Record<string, any>) => {
     const payload = {
+      tenantId: selectedTenantId,
+      tenantCode: selectedTenantCode,
       name: formValues.name,
       phone: formValues.phone,
       village: formValues.village || 'Rampur',
@@ -152,11 +199,15 @@ export const CustomersPage: React.FC = () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/customers/${editingCustomer.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          fetchCustomers();
+          fetchCustomers(selectedTenantId);
         }
       } catch (_) {}
       setAlertMsg(`Updated ${formValues.name} successfully.`);
@@ -164,15 +215,19 @@ export const CustomersPage: React.FC = () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/customers`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+          },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
-          fetchCustomers();
+          fetchCustomers(selectedTenantId);
         }
       } catch (_) {}
 
-      setAlertMsg(`Registered new customer ${formValues.name}!`);
+      setAlertMsg(`Registered new customer ${formValues.name} for ${selectedTenantName}!`);
     }
     setOpenModal(false);
   };
@@ -185,11 +240,20 @@ export const CustomersPage: React.FC = () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/customers/payment`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-          body: JSON.stringify({ customerName: paymentCustomer.name, amountPaid: paidAmount, remainingUdhaar: newUdhaar }),
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+          },
+          body: JSON.stringify({
+            tenantId: selectedTenantId,
+            customerName: paymentCustomer.name,
+            amountPaid: paidAmount,
+            remainingUdhaar: newUdhaar,
+          }),
         });
         if (res.ok) {
-          fetchCustomers();
+          fetchCustomers(selectedTenantId);
         }
       } catch (_) {}
 
@@ -198,7 +262,7 @@ export const CustomersPage: React.FC = () => {
     setPaymentCustomer(null);
   };
 
-    // Ledger View Modal
+  // Ledger View Modal
   const [ledgerCustomer, setLedgerCustomer] = useState<CustomerRow | null>(null);
   const [ledgerTransactions, setLedgerTransactions] = useState<any[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
@@ -207,7 +271,12 @@ export const CustomersPage: React.FC = () => {
     setLedgerCustomer(c);
     setIsLoadingLedger(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/customers/${c.id || c.name}/ledger`, { headers: getAuthHeaders() });
+      const res = await fetch(`${getApiBaseUrl()}/customers/${c.id || c.name}/ledger?tenantId=${selectedTenantId}`, {
+        headers: {
+          ...getAuthHeaders(),
+          'X-Tenant-Id': String(selectedTenantId),
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         setLedgerTransactions(data.transactions || []);
@@ -219,10 +288,12 @@ export const CustomersPage: React.FC = () => {
   return (
     <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
+      <Container maxWidth="xl" sx={{ mt: 2 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchCustomers(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Customer Directory & Udhaar Ledger System"
-          subtitle="Manage customer contact directory, outstanding credit balances, and payment collections"
+          title="Customer Directory & Ledger (ग्राहक खाता)"
+          subtitle={`Managing customers & Udhaar ledger for: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}).`}
           breadcrumbs={['Home', 'Ledger', 'Customer Directory']}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -244,12 +315,25 @@ export const CustomersPage: React.FC = () => {
 
         <GenericDataTable<CustomerRow>
           columns={columns}
-          data={filteredCustomers}
+          data={customers}
           keyExtractor={(row) => row.id}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
           onView={(row) => handleOpenLedger(row)}
           isLoading={isLoading}
+          serverSide={true}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+            fetchCustomers(selectedTenantId, newPage, rowsPerPage, searchQuery);
+          }}
+          onRowsPerPageChange={(newRows) => {
+            setRowsPerPage(newRows);
+            setPage(0);
+            fetchCustomers(selectedTenantId, 0, newRows, searchQuery);
+          }}
           emptyMessage="No customers found in directory."
         />
 
@@ -367,7 +451,28 @@ export const CustomersPage: React.FC = () => {
                         {ledgerTransactions.map((tx: any, idx: number) => (
                           <tr key={idx} style={{ borderBottom: '1px solid #F1F5F9', height: '42px' }}>
                             <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{tx.date}</td>
-                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{tx.description}</td>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>
+                              <div>{tx.description}</div>
+                              {tx.itemsSummary && (
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                                  📦 {tx.itemsSummary}
+                                </div>
+                              )}
+                              {tx.paymentMode && (
+                                <span style={{
+                                  display: 'inline-block',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  marginTop: '3px',
+                                  backgroundColor: (tx.paymentMode || '').toLowerCase() === 'udhaar' ? '#FEE2E2' : '#DCFCE7',
+                                  color: (tx.paymentMode || '').toLowerCase() === 'udhaar' ? '#991B1B' : '#166534',
+                                }}>
+                                  {tx.paymentMode.toUpperCase()}
+                                </span>
+                              )}
+                            </td>
                             <td style={{ padding: '8px 12px', textAlign: 'right', color: tx.debit > 0 ? '#DC2626' : '#94A3B8', fontWeight: tx.debit > 0 ? 'bold' : 'normal' }}>
                               {tx.debit > 0 ? `₹ ${tx.debit.toFixed(2)}` : '-'}
                             </td>

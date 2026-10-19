@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Typography } from '@mui/material';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -9,6 +9,8 @@ import { HeaderNav } from '../components/HeaderNav';
 import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
+import { TenantFilterBar } from '../components/common/TenantFilterBar';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 interface CategoryReportRow {
@@ -20,95 +22,81 @@ interface CategoryReportRow {
 }
 
 export const ReportsPage: React.FC = () => {
+  const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [_productsData, setProductsData] = useState<any[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [cashSales, setCashSales] = useState(0);
+  const [upiSales, setUpiSales] = useState(0);
+  const [udhaarSales, setUdhaarSales] = useState(0);
+  const [totalInvoices, setTotalInvoices] = useState(0);
   const [categoryRows, setCategoryRows] = useState<CategoryReportRow[]>([]);
 
-  useEffect(() => {
-    fetchReportData();
-  }, []);
-
-  const fetchReportData = async () => {
+  const fetchReportData = useCallback(async (tenantIdOverride?: number) => {
+    const tid = tenantIdOverride ?? selectedTenantId;
     setIsLoading(true);
     try {
-      const [salesRes, productsRes] = await Promise.all([
-        fetch(`${getApiBaseUrl()}/sales`, { headers: getAuthHeaders() }),
-        fetch(`${getApiBaseUrl()}/products`, { headers: getAuthHeaders() }),
+      const headers = {
+        ...getAuthHeaders(),
+        'X-Tenant-Id': String(tid),
+        ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+      };
+      const [metricsRes, catRes] = await Promise.all([
+        fetch(`${getApiBaseUrl()}/reports/dashboard-metrics?tenantId=${tid}`, { headers }),
+        fetch(`${getApiBaseUrl()}/reports/category-summary?tenantId=${tid}`, { headers }),
       ]);
 
-      let sales: any[] = [];
-      let products: any[] = [];
-
-      if (salesRes.ok) {
-        const sData = await salesRes.json();
-        if (Array.isArray(sData)) sales = sData;
+      if (metricsRes.ok) {
+        const mData = await metricsRes.json();
+        setTotalRevenue(mData.totalRevenue || 0);
+        setCashSales(mData.cashSales || 0);
+        setUpiSales(mData.upiSales || 0);
+        setUdhaarSales(mData.udhaarSales || 0);
+        setTotalInvoices(mData.totalSales || 0);
       }
 
-      if (productsRes.ok) {
-        const pData = await productsRes.json();
-        if (Array.isArray(pData)) products = pData;
-      }
-
-      setSalesData(sales);
-      setProductsData(products);
-
-      // Group by category dynamically
-      const catMap: Record<string, { itemsSold: number; revenue: number }> = {};
-
-      sales.forEach((sale) => {
-        const items = sale.items || [];
-        if (items.length > 0) {
-          items.forEach((item: any) => {
-            const prod = products.find((p) => p.name?.toLowerCase() === item.productName?.toLowerCase());
-            const cat = prod?.category || 'Groceries';
-            if (!catMap[cat]) catMap[cat] = { itemsSold: 0, revenue: 0 };
-            catMap[cat].itemsSold += Math.round(item.quantity || 1);
-            catMap[cat].revenue += item.totalAmount || (item.unitPrice * (item.quantity || 1));
-          });
-        } else {
-          const cat = 'General Groceries';
-          if (!catMap[cat]) catMap[cat] = { itemsSold: 0, revenue: 0 };
-          catMap[cat].itemsSold += 1;
-          catMap[cat].revenue += sale.totalAmount || 0;
-        }
-      });
-
-      const grandTotalRevenue = Object.values(catMap).reduce((sum, c) => sum + c.revenue, 0) || 1;
-      const rows: CategoryReportRow[] = Object.entries(catMap).map(([cat, val]) => ({
-        category: cat,
-        itemsSold: val.itemsSold,
-        totalRevenue: `₹ ${val.revenue.toFixed(2)}`,
-        profitMargin: '15.5%',
-        sharePercent: `${Math.round((val.revenue / grandTotalRevenue) * 100)}%`,
-      }));
-
-      if (rows.length === 0) {
-        setCategoryRows([
-          { category: 'Groceries & Staples', itemsSold: 420, totalRevenue: '₹ 45,200.00', profitMargin: '14.5%', sharePercent: '42%' },
-          { category: 'Edible Oils & Ghee', itemsSold: 180, totalRevenue: '₹ 28,400.00', profitMargin: '11.2%', sharePercent: '26%' },
-          { category: 'Detergents & Soaps', itemsSold: 110, totalRevenue: '₹ 14,300.00', profitMargin: '18.0%', sharePercent: '13%' },
-        ]);
-      } else {
+      if (catRes.ok) {
+        const cData = await catRes.json();
+        const rawList = Array.isArray(cData) ? cData : (cData?.value || []);
+        const rows: CategoryReportRow[] = rawList.map((c: any) => ({
+          category: c.category || 'General',
+          itemsSold: c.itemsSold || 0,
+          totalRevenue: c.revenueFormatted || `₹ ${(c.totalRevenue || 0).toFixed(2)}`,
+          profitMargin: c.profitMargin || '15.0%',
+          sharePercent: c.sharePercent || '0%',
+        }));
         setCategoryRows(rows);
+      } else {
+        setCategoryRows([]);
       }
-    } catch (_) {}
-    setIsLoading(false);
-  };
+    } catch (_) {
+      setCategoryRows([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedTenantId, selectedTenantCode]);
 
-  const totalRevenue = salesData.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
-  const cashSales = salesData.filter((s) => s.paymentMode === 'Cash').reduce((sum, s) => sum + (s.totalAmount || 0), 0);
-  const upiSales = salesData.filter((s) => s.paymentMode === 'UPI').reduce((sum, s) => sum + (s.totalAmount || 0), 0);
-  const udhaarSales = salesData.filter((s) => s.paymentMode === 'Udhaar').reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+  useEffect(() => {
+    fetchReportData(selectedTenantId);
+  }, [selectedTenantId, fetchReportData]);
 
-  const cashPercent = totalRevenue > 0 ? Math.round((cashSales / totalRevenue) * 100) : 70;
-  const upiPercent = totalRevenue > 0 ? Math.round((upiSales / totalRevenue) * 100) : 30;
+  useEffect(() => {
+    const handleTenantChange = (e: any) => {
+      if (e.detail?.tenantId) {
+        fetchReportData(e.detail.tenantId);
+      }
+    };
+    window.addEventListener('tenant-changed', handleTenantChange);
+    return () => window.removeEventListener('tenant-changed', handleTenantChange);
+  }, [fetchReportData]);
+
+  const cashPercent = totalRevenue > 0 ? Math.round((cashSales / totalRevenue) * 100) : 0;
+  const upiPercent = totalRevenue > 0 ? Math.round((upiSales / totalRevenue) * 100) : 0;
 
   const filtered = categoryRows.filter((c) => c.category.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const statsItems: StatItem[] = [
-    { id: 'rev', title: 'Gross Revenue (Total Sales)', value: `₹ ${totalRevenue.toFixed(2)}`, change: `${salesData.length} total invoices generated`, changeType: 'positive', icon: <AssessmentIcon />, borderAccentColor: '#2563EB' },
+    { id: 'rev', title: 'Gross Revenue (Total Sales)', value: `₹ ${totalRevenue.toFixed(2)}`, change: `${totalInvoices} total invoices generated`, changeType: 'positive', icon: <AssessmentIcon />, borderAccentColor: '#2563EB' },
     { id: 'cash_vs_upi', title: 'Cash vs Online Share', value: `${cashPercent}% Cash / ${upiPercent}% UPI`, change: `Cash ₹${cashSales.toFixed(0)} | Online ₹${upiSales.toFixed(0)}`, icon: <PaymentsIcon />, borderAccentColor: '#10B981' },
     { id: 'credit', title: 'Udhaar Credit Extended', value: `₹ ${udhaarSales.toFixed(2)}`, change: 'Tracked in customer ledger', icon: <AccountBalanceWalletIcon />, borderAccentColor: '#D97706' },
   ];
@@ -130,17 +118,19 @@ export const ReportsPage: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Sales_Report_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Sales_Report_${selectedTenantName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
   return (
     <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ mt: 3 }}>
+      <Container maxWidth="xl" sx={{ mt: 2 }}>
+        <TenantFilterBar onTenantChange={(tId) => fetchReportData(tId)} sx={{ mb: 2 }} />
+
         <PageHeader
-          title="Financial Analytics & Revenue Performance Reports"
-          subtitle="Comprehensive store earnings, category breakdowns, profit margins, and payment mode analytics"
+          title="Financial Analytics & Revenue Reports (रिपोर्ट्स एवं विश्लेषण)"
+          subtitle={`Analytics breakdown for store: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}). Earnings, category breakdowns, and payment modes.`}
           breadcrumbs={['Home', 'Analytics', 'Financial Reports']}
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -170,7 +160,7 @@ export const ReportsPage: React.FC = () => {
           data={filtered}
           keyExtractor={(row) => row.category}
           isLoading={isLoading}
-          emptyMessage="No report data found."
+          emptyMessage={`No report data found for ${selectedTenantName}.`}
         />
       </Container>
     </Box>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Typography, Alert } from '@mui/material';
 import BusinessIcon from '@mui/icons-material/Business';
 import StoreIcon from '@mui/icons-material/Store';
@@ -10,6 +10,7 @@ import { PageHeader } from '../components/common/PageHeader';
 import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
 import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { GenericFormModal, FormFieldDef } from '../components/common/GenericFormModal';
+import { useAuth } from '../context/AuthContext';
 import { getApiBaseUrl, getAuthHeaders } from '../services/apiConfig';
 
 export interface TenantRow {
@@ -28,69 +29,86 @@ export interface TenantRow {
 }
 
 export const TenantsPage: React.FC = () => {
-  const [tenants, setTenants] = useState<TenantRow[]>([
-    { tenantId: 'TNT-001', name: 'Sharma General Store', code: 'SHARMA_SHOP', plan: 'Enterprise SaaS', activeStatus: 'ACTIVE', ownerName: 'Ram Sharma', ownerPhone: '+91 98765 43210', joinedDate: '15 Jan 2026', storesCount: 3 },
-    { tenantId: 'TNT-002', name: 'Gupta Kirana & Provisions', code: 'GUPTA_KIRANA', plan: 'Pro Business', activeStatus: 'ACTIVE', ownerName: 'Suresh Gupta', ownerPhone: '+91 98123 45678', joinedDate: '02 Feb 2026', storesCount: 1 },
-    { tenantId: 'TNT-003', name: 'Verma Traders & Seeds', code: 'VERMA_TRADERS', plan: 'Basic Starter', activeStatus: 'TRIAL', ownerName: 'Vikas Verma', ownerPhone: '+91 97654 32109', joinedDate: '20 Aug 2026', storesCount: 1 },
-    { tenantId: 'TNT-004', name: 'Kisan Agro Store', code: 'KISAN_AGRO', plan: 'Pro Business', activeStatus: 'SUSPENDED', ownerName: 'Rajesh Kumar', ownerPhone: '+91 99887 76655', joinedDate: '10 Mar 2026', storesCount: 2 },
-  ]);
+  const { switchTenant } = useAuth();
+  const [tenants, setTenants] = useState<TenantRow[]>([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [alertMsg, setAlertMsg] = useState('');
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'info'>('success');
 
   // Modal State
   const [openModal, setOpenModal] = useState(false);
   const [editingTenant, setEditingTenant] = useState<TenantRow | null>(null);
 
-  useEffect(() => {
-    fetchTenants();
-  }, []);
-
-  const fetchTenants = async () => {
+  const fetchTenants = useCallback(async (pageOverride = page, rowsOverride = rowsPerPage, searchOverride = searchQuery) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/settings/tenants?_t=${Date.now()}`, { headers: getAuthHeaders() });
-      const data = await res.json();
-      if (data && data.status && data.additionalMessage) {
-        const parsed = JSON.parse(data.additionalMessage);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const mapped: TenantRow[] = parsed.map((t: any, idx: number) => ({
-            id: t.id || t.Id || idx + 1,
-            tenantId: t.tenantId || t.TenantId || `TNT-${t.id || t.Id || idx + 1}`,
-            name: t.name || t.Name || t.tenantName || 'Store Client',
-            code: t.code || t.Code || t.tenantCode || `TNT_${t.id || idx + 1}`,
-            plan: t.plan || t.Plan || 'Enterprise SaaS',
-            activeStatus: t.activeStatus || t.ActiveStatus || 'ACTIVE',
-            ownerName: t.ownerName || t.OwnerName || 'Store Owner',
-            ownerPhone: t.ownerPhone || t.OwnerPhone || '+91 98765 43210',
-            joinedDate: t.joinedDate || t.JoinedDate || 'Recently',
-            storesCount: t.storesCount || t.StoresCount || 1,
-            adminUsername: t.adminUsername || t.AdminUsername || 'admin',
-            primaryColor: t.primaryColor || t.PrimaryColor || '#DC2626',
-          }));
-          setTenants(mapped);
-        }
-      }
-    } catch (_) {}
-    setIsLoading(false);
-  };
+      const params = new URLSearchParams({
+        page: String(pageOverride + 1),
+        pageSize: String(rowsOverride),
+        paged: 'true',
+      });
+      if (searchOverride.trim()) params.append('search', searchOverride.trim());
 
-  const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.ownerName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      const res = await fetch(`${getApiBaseUrl()}/settings/tenants?${params.toString()}`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      let rawList: any[] = [];
+      let total = 0;
+
+      if (data && Array.isArray(data.items)) {
+        rawList = data.items;
+        total = data.totalCount || rawList.length;
+      } else if (data && data.status && data.additionalMessage) {
+        try {
+          const parsed = JSON.parse(data.additionalMessage);
+          if (Array.isArray(parsed)) {
+            rawList = parsed;
+            total = parsed.length;
+          }
+        } catch (_) {}
+      }
+
+      const mapped: TenantRow[] = rawList.map((t: any, idx: number) => ({
+        id: t.id || t.Id || idx + 1,
+        tenantId: t.tenantId || t.TenantId || `TNT-${t.id || t.Id || idx + 1}`,
+        name: t.name || t.Name || t.tenantName || 'Store Client',
+        code: t.code || t.Code || t.tenantCode || `TNT_${t.id || idx + 1}`,
+        plan: t.plan || t.Plan || 'Enterprise SaaS',
+        activeStatus: t.activeStatus || t.ActiveStatus || 'ACTIVE',
+        ownerName: t.ownerName || t.OwnerName || 'Store Owner',
+        ownerPhone: t.ownerPhone || t.OwnerPhone || '+91 98765 43210',
+        joinedDate: t.joinedDate || t.JoinedDate || 'Recently',
+        storesCount: t.storesCount || t.StoresCount || 1,
+        adminUsername: t.adminUsername || t.AdminUsername || 'admin',
+        primaryColor: t.primaryColor || t.PrimaryColor || '#DC2626',
+      }));
+
+      setTenants(mapped);
+      setTotalCount(total);
+    } catch (_) {
+      setTenants([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, rowsPerPage, searchQuery]);
+
+  useEffect(() => {
+    fetchTenants(0, rowsPerPage, searchQuery);
+  }, [searchQuery]);
 
   const activeCount = tenants.filter((t) => t.activeStatus === 'ACTIVE').length;
   const totalStores = tenants.reduce((sum, t) => sum + (t.storesCount || 1), 0);
 
   const statsItems: StatItem[] = [
-    { id: 'total', title: 'Registered Client Stores', value: tenants.length, change: '100% active SaaS portfolio', icon: <BusinessIcon />, borderAccentColor: '#2563EB' },
+    { id: 'total', title: 'Registered Client Stores', value: totalCount, change: '100% active SaaS portfolio', icon: <BusinessIcon />, borderAccentColor: '#2563EB' },
     { id: 'active', title: 'Active Paid Subscriptions', value: activeCount, change: `${activeCount} active tenants`, icon: <VerifiedUserIcon />, borderAccentColor: '#10B981' },
     { id: 'stores', title: 'Total Managed Outlets', value: totalStores, subtitle: 'Multi-store expansion', icon: <StoreIcon />, borderAccentColor: '#D97706' },
-    { id: 'trial', title: 'Trial & Suspended', value: tenants.length - activeCount, subtitle: 'Requires renewal follow-up', icon: <WarningAmberIcon />, borderAccentColor: '#EF4444' },
+    { id: 'trial', title: 'Trial & Suspended', value: Math.max(0, totalCount - activeCount), subtitle: 'Requires renewal follow-up', icon: <WarningAmberIcon />, borderAccentColor: '#EF4444' },
   ];
 
   const columns: ColumnDef<TenantRow>[] = [
@@ -184,8 +202,6 @@ export const TenantsPage: React.FC = () => {
     }
   };
 
-  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error'>('success');
-
   const handleSaveModal = async (formValues: Record<string, any>) => {
     try {
       if (editingTenant) {
@@ -262,11 +278,30 @@ export const TenantsPage: React.FC = () => {
 
         <GenericDataTable<TenantRow>
           columns={columns}
-          data={filteredTenants}
+          data={tenants}
           keyExtractor={(row) => row.tenantId}
+          onView={(row) => {
+            const numId = row.id || parseInt(row.tenantId.replace(/\D/g, ''), 10) || 1;
+            switchTenant(numId, row.code, row.name);
+            setAlertSeverity('success');
+            setAlertMsg(`Active store context switched to "${row.name}" (${row.code}). All pages now display this store's data.`);
+          }}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
           isLoading={isLoading}
+          serverSide={true}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+            fetchTenants(newPage, rowsPerPage, searchQuery);
+          }}
+          onRowsPerPageChange={(newRows) => {
+            setRowsPerPage(newRows);
+            setPage(0);
+            fetchTenants(0, newRows, searchQuery);
+          }}
           emptyMessage="No client store tenants found matching your query."
         />
 
