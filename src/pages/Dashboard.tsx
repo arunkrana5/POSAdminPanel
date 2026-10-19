@@ -1,286 +1,386 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Container, Typography, Chip, Paper, Button, Stack } from '@mui/material';
-import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
+import {
+  Box, Container, Typography, Paper, Grid, IconButton,
+  Tooltip, CircularProgress, Chip, Stack, Button, Skeleton
+} from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import PieChartIcon from '@mui/icons-material/PieChart';
+import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
-import DownloadIcon from '@mui/icons-material/Download';
-import AddIcon from '@mui/icons-material/Add';
-import CategoryIcon from '@mui/icons-material/Category';
-import AndroidIcon from '@mui/icons-material/Android';
-import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import GetAppIcon from '@mui/icons-material/GetApp';
 import { HeaderNav } from '../components/HeaderNav';
-import { PageHeader } from '../components/common/PageHeader';
-import { StatCardGrid, StatItem } from '../components/common/StatCardGrid';
-import { GenericDataTable, ColumnDef } from '../components/common/GenericDataTable';
 import { TenantFilterBar } from '../components/common/TenantFilterBar';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import apiClient from '../services/apiClient';
-
-interface TransactionRow {
-  id: string;
-  customer: string;
-  mobile: string;
-  village: string;
-  amount: string;
-  mode: string;
-  status: string;
-  date: string;
-}
+import {
+  DailyRevenueAreaChart,
+  PaymentModeDonutChart,
+  TopSellingHorizontalBarChart,
+  CategoryValuationBarChart,
+  SettlementRatioChart,
+  CHART_COLORS,
+} from '../components/analytics/AnalyticsCharts';
 
 export const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
   const { selectedTenantId, selectedTenantName, selectedTenantCode } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [days, setDays] = useState<number>(7);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [totalSales, setTotalSales] = useState(0);
-  const [totalUdhaar, setTotalUdhaar] = useState(0);
-  const [productCount, setProductCount] = useState(0);
-  const [customerCount, setCustomerCount] = useState(0);
-  const [recentTransactions, setRecentTransactions] = useState<TransactionRow[]>([]);
+  // Analytics Metrics State
+  const [dailyTrend, setDailyTrend] = useState<any[]>([]);
+  const [paymentBreakdown, setPaymentBreakdown] = useState<any[]>([]);
+  const [topSellingProducts, setTopSellingProducts] = useState<any[]>([]);
+  const [settlementBreakdown, setSettlementBreakdown] = useState<any[]>([]);
+  const [categorySummary, setCategorySummary] = useState<any[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState<number>(0);
+  const [totalSales, setTotalSales] = useState<number>(0);
 
-  const fetchDashboardMetrics = useCallback(async (tenantIdOverride?: number) => {
-    const tid = tenantIdOverride ?? selectedTenantId;
-    setIsLoading(true);
-    try {
-      // 1. Primary: Fast SQL Server aggregated endpoint
-      const metricsRes = await apiClient.get(`/reports/dashboard-metrics?tenantId=${tid}`);
-      if (metricsRes.data) {
-        const d = metricsRes.data;
-        setTotalSales(d.totalRevenue || 0);
-        setTotalUdhaar(d.totalUdhaar || 0);
-        setProductCount(d.totalProducts || 0);
-        setCustomerCount(d.totalCustomers || 0);
-        if (Array.isArray(d.recentSales)) {
-          setRecentTransactions(d.recentSales.map((s: any) => ({
-            id: s.invoiceNumber,
-            customer: s.customerName || 'Customer',
-            mobile: s.customerPhone || 'N/A',
-            village: 'Store',
-            amount: `₹ ${(s.totalAmount || 0).toFixed(2)}`,
-            mode: s.paymentMode || 'Cash',
-            status: s.status || 'COMPLETED',
-            date: s.createdAt || 'Recent',
-          })));
-        }
-        setIsLoading(false);
-        return;
-      }
-    } catch (_) {
-      // Fallback to legacy individual requests if needed
+  const fetchDashboardMetrics = useCallback(
+    async (tenantIdOverride?: number, daysOverride = days) => {
+      const tid = tenantIdOverride ?? selectedTenantId;
+      setIsLoading(true);
+      setError(null);
+
       try {
-        const [salesRes, custRes, stockRes] = await Promise.all([
-          apiClient.get(`/sales?tenantId=${tid}&page=1&pageSize=10&paged=true`),
-          apiClient.get(`/customers?tenantId=${tid}&page=1&pageSize=10&paged=true`),
-          apiClient.get(`/Stock?tenantId=${tid}&page=1&pageSize=10&paged=true`),
-        ]);
-
-        let salesSum = 0;
-        let txRows: TransactionRow[] = [];
-        if (salesRes.data) {
-          const salesList = Array.isArray(salesRes.data) ? salesRes.data : (salesRes.data.items || []);
-          salesList.forEach((s: any) => { salesSum += (s.totalAmount || 0); });
-          txRows = salesList.slice(0, 10).map((s: any) => ({
-            id: s.id || `INV-${s.dbId}`,
-            customer: s.customerName || 'Walk-in Customer',
-            mobile: s.customerPhone || 'N/A',
-            village: 'Store',
-            amount: `₹ ${(s.totalAmount || 0).toFixed(2)}`,
-            mode: s.paymentMode || 'Cash',
-            status: s.status || 'COMPLETED',
-            date: s.createdAt || 'Recent',
-          }));
+        const res = await apiClient.get(
+          `/reports/dashboard-metrics?tenantId=${tid}&days=${daysOverride}`
+        );
+        if (res.data) {
+          const d = res.data;
+          setDailyTrend(Array.isArray(d.dailyTrend) ? d.dailyTrend : []);
+          setPaymentBreakdown(Array.isArray(d.paymentBreakdown) ? d.paymentBreakdown : []);
+          setTopSellingProducts(Array.isArray(d.topSellingProducts) ? d.topSellingProducts : []);
+          setSettlementBreakdown(Array.isArray(d.settlementBreakdown) ? d.settlementBreakdown : []);
+          setCategorySummary(Array.isArray(d.categorySummary) ? d.categorySummary : []);
+          setTotalRevenue(d.totalRevenue || 0);
+          setTotalSales(d.totalSales || 0);
         }
-
-        let udhaarSum = 0;
-        let custTotal = 0;
-        if (custRes.data) {
-          const custs = Array.isArray(custRes.data) ? custRes.data : (custRes.data.items || []);
-          custTotal = custRes.data.totalCount || custs.length;
-          custs.forEach((c: any) => { udhaarSum += (c.udhaar || c.currentBalance || 0); });
-        }
-
-        let prodTotal = 0;
-        if (stockRes.data) {
-          prodTotal = stockRes.data.totalCount || (Array.isArray(stockRes.data) ? stockRes.data.length : (stockRes.data.items?.length || 0));
-        }
-
-        setTotalSales(salesSum);
-        setTotalUdhaar(udhaarSum);
-        setProductCount(prodTotal);
-        setCustomerCount(custTotal);
-        setRecentTransactions(txRows);
-      } catch (_) {}
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedTenantId]);
-
+      } catch (err: any) {
+        setError(err?.message || 'Failed to fetch analytics metrics from server');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [selectedTenantId, days]
+  );
 
   useEffect(() => {
-    fetchDashboardMetrics(selectedTenantId);
-  }, [selectedTenantId, fetchDashboardMetrics]);
+    fetchDashboardMetrics(selectedTenantId, days);
+  }, [selectedTenantId, days, fetchDashboardMetrics]);
 
   useEffect(() => {
     const handleTenantChange = (e: any) => {
       if (e.detail?.tenantId) {
-        fetchDashboardMetrics(e.detail.tenantId);
+        fetchDashboardMetrics(e.detail.tenantId, days);
       }
     };
     window.addEventListener('tenant-changed', handleTenantChange);
     return () => window.removeEventListener('tenant-changed', handleTenantChange);
-  }, [fetchDashboardMetrics]);
-
-  const filteredTx = recentTransactions.filter(
-    (t) =>
-      t.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const statsItems: StatItem[] = [
-    { id: 'sales', title: "Live Gross Sales", value: `₹ ${totalSales.toFixed(2)}`, change: `Store #${selectedTenantId}`, changeType: 'positive', icon: <ShoppingBagIcon />, borderAccentColor: '#2563EB' },
-    { id: 'udhaar', title: 'Market Udhaar Dues', value: `₹ ${totalUdhaar.toFixed(2)}`, change: 'Live Ledger Balance', changeType: 'neutral', icon: <AccountBalanceWalletIcon />, borderAccentColor: '#D97706' },
-    { id: 'stock', title: 'Inventory Stock SKUs', value: `${productCount} Items`, change: 'Active Stock In Items', changeType: 'positive', icon: <Inventory2Icon />, borderAccentColor: '#10B981' },
-    { id: 'cust', title: 'Registered Customers', value: `${customerCount} Clients`, change: 'Active Customer Directory', changeType: 'positive', icon: <PeopleAltIcon />, borderAccentColor: '#6366F1' },
-  ];
-
-  const columns: ColumnDef<TransactionRow>[] = [
-    { key: 'id', header: 'Invoice Ref', render: (r) => <Typography variant="body2" fontFamily="monospace" fontWeight="700" color="#2563EB">{r.id}</Typography> },
-    { key: 'customer', header: 'Customer Name', render: (r) => <Typography variant="subtitle2" fontWeight="700">{r.customer}</Typography> },
-    { key: 'amount', header: 'Total Amount', render: (r) => <Typography variant="subtitle2" fontWeight="800" color="#0F172A">{r.amount}</Typography> },
-    { key: 'mode', header: 'Payment Mode', render: (r) => <Chip label={r.mode} size="small" color={r.mode === 'Cash' ? 'success' : r.mode === 'UPI' ? 'info' : 'warning'} sx={{ fontWeight: 800, height: 20 }} /> },
-    { key: 'status', header: 'Invoice Status' },
-    { key: 'date', header: 'Date & Time' },
-  ];
+  }, [fetchDashboardMetrics, days]);
 
   return (
-    <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 6 }}>
+    <Box sx={{ backgroundColor: '#F8FAFC', minHeight: '100vh', pb: 4 }}>
+      {/* Global Application Navigation */}
       <HeaderNav />
-      <Container maxWidth="xl" sx={{ mt: 2 }}>
-        <TenantFilterBar onTenantChange={(tId) => fetchDashboardMetrics(tId)} sx={{ mb: 2 }} />
 
-        <PageHeader
-          title="SaaS Store Performance & Financial Overview"
-          subtitle={`Real-time overview for: ${selectedTenantName} (${selectedTenantCode || 'Store #' + selectedTenantId}). POS sales, market credit ledgers, and inventory.`}
-          breadcrumbs={['Home', 'SaaS Control Center', 'Dashboard']}
-          searchValue={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchPlaceholder="Search invoices or customers..."
-          primaryAction={{
-            label: 'New POS Sale',
-            onClick: () => navigate('/sales'),
-            icon: <AddIcon />,
-          }}
-          secondaryActions={[
-            {
-              label: 'Masters (मास्टर डेटा)',
-              onClick: () => navigate('/masters'),
-              icon: <CategoryIcon />,
-            },
-            {
-              label: 'Export CSV',
-              onClick: () => alert('Exporting dashboard metrics to CSV...'),
-              icon: <DownloadIcon />,
-            },
-          ]}
+      <Container maxWidth="xl" sx={{ mt: 1.5, px: { xs: 1.5, sm: 2 } }}>
+        {/* Compact Tenant Bar */}
+        <TenantFilterBar
+          onTenantChange={(tId) => fetchDashboardMetrics(tId, days)}
+          sx={{ mb: 1.5, p: 1.5 }}
         />
 
-        <StatCardGrid items={statsItems} />
-
-        <Paper
-          elevation={0}
-          sx={{
-            p: 2.5,
-            mb: 3,
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
-            color: '#FFFFFF',
-            display: 'flex',
-            flexDirection: { xs: 'column', md: 'row' },
-            alignItems: { xs: 'flex-start', md: 'center' },
-            justifyContent: 'space-between',
-            gap: 2,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-          }}
+        {/* Compact Analytics Toolbar (No redundant cards or headers) */}
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          flexWrap="wrap"
+          gap={1.5}
+          mb={2}
+          px={1}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Box
+                width={8}
+                height={8}
+                borderRadius="50%"
+                bgcolor="#10B981"
+                sx={{
+                  boxShadow: '0 0 0 3px rgba(16, 185, 129, 0.2)',
+                  animation: 'pulse 2s infinite',
+                }}
+              />
+              <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                Store Analytics Workspace
+              </Typography>
+            </Box>
+            <Chip
+              label={`${selectedTenantName} (${selectedTenantCode || '#' + selectedTenantId})`}
+              size="small"
               sx={{
-                width: 48,
-                height: 48,
-                borderRadius: '10px',
-                backgroundColor: '#10B981',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
+                bgcolor: '#EFF6FF',
+                color: '#1D4ED8',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                border: '1px solid #BFDBFE',
               }}
-            >
-              <AndroidIcon sx={{ fontSize: 28, color: '#FFFFFF' }} />
-            </Box>
-            <Box>
-              <Typography variant="subtitle1" fontWeight="800">
-                VillageShop Android Mobile App (.apk)
-              </Typography>
-              <Typography variant="body2" color="#94A3B8">
-                Direct Cloud APK download & WhatsApp sharing for store staff & field operators
-              </Typography>
-            </Box>
+            />
+            <Chip
+              label={`Turnover: ₹${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} • ${totalSales} Bills`}
+              size="small"
+              sx={{
+                bgcolor: '#F1F5F9',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                border: '1px solid #CBD5E1',
+              }}
+            />
           </Box>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ width: { xs: '100%', md: 'auto' } }}>
-            <Button
-              variant="contained"
-              startIcon={<WhatsAppIcon />}
-              href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                '📱 *VillageShop POS App Download*\n\nDownload the latest VillageShop Android App to manage store billing, inventory, and Udhaar ledgers:\n\nhttps://villageshop-api.onrender.com/VillageShop.apk'
-              )}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{
-                backgroundColor: '#25D366',
-                '&:hover': { backgroundColor: '#1EBE5D' },
-                fontWeight: 700,
-                borderRadius: '8px',
-                textTransform: 'none',
-              }}
-            >
-              Share App on WhatsApp
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<GetAppIcon />}
-              href="https://villageshop-api.onrender.com/VillageShop.apk"
-              target="_blank"
-              download="VillageShop.apk"
-              sx={{
-                backgroundColor: '#2563EB',
-                '&:hover': { backgroundColor: '#1D4ED8' },
-                fontWeight: 700,
-                borderRadius: '8px',
-                textTransform: 'none',
-              }}
-            >
-              Download APK (17.5 MB)
-            </Button>
+          {/* Time Range Filter Chips & Refresh Action */}
+          <Stack direction="row" spacing={1} alignItems="center">
+            {[
+              { label: '7 Days', val: 7 },
+              { label: '30 Days', val: 30 },
+              { label: 'All Time', val: 0 },
+            ].map((period) => (
+              <Chip
+                key={period.val}
+                label={period.label}
+                size="small"
+                clickable
+                color={days === period.val ? 'primary' : 'default'}
+                variant={days === period.val ? 'filled' : 'outlined'}
+                onClick={() => setDays(period.val)}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
+                  height: 26,
+                  cursor: 'pointer',
+                  borderColor: days === period.val ? '#2563EB' : '#CBD5E1',
+                }}
+              />
+            ))}
+
+            <Tooltip title="Refresh Real-time Chart Data">
+              <IconButton
+                size="small"
+                onClick={() => fetchDashboardMetrics(selectedTenantId, days)}
+                disabled={isLoading}
+                sx={{
+                  bgcolor: '#FFFFFF',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '6px',
+                  p: 0.5,
+                }}
+              >
+                {isLoading ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  <RefreshIcon fontSize="small" sx={{ color: '#64748B' }} />
+                )}
+              </IconButton>
+            </Tooltip>
           </Stack>
-        </Paper>
+        </Box>
 
-        <Typography variant="h6" fontWeight="800" color="#0F172A" mb={1.5}>
-          Recent Billing Transactions & Invoices Stream (Live Database)
-        </Typography>
+        {/* Error State with Retry Button */}
+        {error && (
+          <Paper
+            elevation={0}
+            sx={{
+              p: 2,
+              mb: 2,
+              borderRadius: '8px',
+              bgcolor: '#FEF2F2',
+              border: '1px solid #FCA5A5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Typography variant="body2" color="#B91C1C" fontWeight="600">
+              {error}
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              color="error"
+              onClick={() => fetchDashboardMetrics(selectedTenantId, days)}
+            >
+              Retry Loading Charts
+            </Button>
+          </Paper>
+        )}
 
-        <GenericDataTable<TransactionRow>
-          columns={columns}
-          data={filteredTx}
-          keyExtractor={(row) => row.id}
-          isLoading={isLoading}
-          onView={(row) => alert(`Invoice Ref: ${row.id}\nCustomer: ${row.customer}\nAmount: ${row.amount}`)}
-          emptyMessage={`No recent transactions found for ${selectedTenantName}.`}
-        />
+        {/* Dense, Responsive Charts Grid */}
+        <Grid container spacing={2}>
+          {/* Chart 1: Revenue & Order Velocity Trend (Area Chart) */}
+          <Grid item xs={12} lg={8}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: '10px',
+                border: `1px solid ${CHART_COLORS.border}`,
+                bgcolor: '#FFFFFF',
+                height: '100%',
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <TrendingUpIcon sx={{ color: '#2563EB', fontSize: 20 }} />
+                  <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                    Sales Revenue & Invoice Velocity Trend
+                  </Typography>
+                </Box>
+                <Chip
+                  label={days === 7 ? '7-Day Curve' : days === 30 ? '30-Day Curve' : 'Historical Curve'}
+                  size="small"
+                  sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: '#F1F5F9' }}
+                />
+              </Box>
+
+              {isLoading ? (
+                <Skeleton variant="rounded" width="100%" height={220} animation="wave" />
+              ) : (
+                <DailyRevenueAreaChart data={dailyTrend} height={220} />
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Chart 2: Payment Mode Breakdown (Donut Chart) */}
+          <Grid item xs={12} lg={4}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: '10px',
+                border: `1px solid ${CHART_COLORS.border}`,
+                bgcolor: '#FFFFFF',
+                height: '100%',
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <PieChartIcon sx={{ color: '#10B981', fontSize: 20 }} />
+                  <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                    Payment Mode Distribution
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="#64748B" fontWeight="600">
+                  Cash vs UPI vs Udhaar
+                </Typography>
+              </Box>
+
+              {isLoading ? (
+                <Skeleton variant="rounded" width="100%" height={220} animation="wave" />
+              ) : (
+                <PaymentModeDonutChart data={paymentBreakdown} height={220} />
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Chart 3: Top 5 Fast Moving Items (Ranked Horizontal Bar Chart) */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: '10px',
+                border: `1px solid ${CHART_COLORS.border}`,
+                bgcolor: '#FFFFFF',
+                height: '100%',
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <LeaderboardIcon sx={{ color: '#F59E0B', fontSize: 20 }} />
+                  <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                    Top Selling Products by Revenue
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="#64748B" fontWeight="600">
+                  SQL Aggregate
+                </Typography>
+              </Box>
+
+              {isLoading ? (
+                <Skeleton variant="rounded" width="100%" height={220} animation="wave" />
+              ) : (
+                <TopSellingHorizontalBarChart data={topSellingProducts} height={220} />
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Chart 4: Category Stock Valuation (Bar Chart) */}
+          <Grid item xs={12} md={6}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: '10px',
+                border: `1px solid ${CHART_COLORS.border}`,
+                bgcolor: '#FFFFFF',
+                height: '100%',
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <BarChartIcon sx={{ color: '#0D9488', fontSize: 20 }} />
+                  <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                    Category Inventory Stock Valuation
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="#64748B" fontWeight="600">
+                  ₹ Asset Holdings
+                </Typography>
+              </Box>
+
+              {isLoading ? (
+                <Skeleton variant="rounded" width="100%" height={220} animation="wave" />
+              ) : (
+                <CategoryValuationBarChart data={categorySummary} height={220} />
+              )}
+            </Paper>
+          </Grid>
+
+          {/* Chart 5: Credit Recovery & Settlement Ratio */}
+          <Grid item xs={12}>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 2,
+                borderRadius: '10px',
+                border: `1px solid ${CHART_COLORS.border}`,
+                bgcolor: '#FFFFFF',
+              }}
+            >
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <AccountBalanceWalletIcon sx={{ color: '#6366F1', fontSize: 20 }} />
+                  <Typography variant="subtitle2" fontWeight="800" color="#0F172A">
+                    Settlement Health & Market Debt Exposure
+                  </Typography>
+                </Box>
+                <Typography variant="caption" color="#64748B" fontWeight="600">
+                  Fully Settled vs Outstanding Udhaar
+                </Typography>
+              </Box>
+
+              {isLoading ? (
+                <Skeleton variant="rounded" width="100%" height={120} animation="wave" />
+              ) : (
+                <SettlementRatioChart data={settlementBreakdown} height={130} />
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
       </Container>
     </Box>
   );
