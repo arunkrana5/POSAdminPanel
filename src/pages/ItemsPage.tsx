@@ -150,25 +150,74 @@ export const ItemsPage: React.FC = () => {
   const modalFields: FormFieldDef[] = [
     { name: 'itemCode', label: 'Item Code', type: 'text', required: true, placeholder: 'e.g. ITM-1001' },
     { name: 'name', label: 'Item Name', type: 'text', required: true, placeholder: 'e.g. Aashirvaad Atta 5kg' },
-    { name: 'category', label: 'Category', type: 'select', options: [
-      { label: 'Groceries', value: 'Groceries' },
-      { label: 'Edible Oil', value: 'Edible Oil' },
-      { label: 'Detergent & Soap', value: 'Detergent' },
-      { label: 'Spices', value: 'Spices' },
-      { label: 'Beverages', value: 'Beverages' },
-      { label: 'Dairy', value: 'Dairy' },
-      { label: 'Grains', value: 'Grains' },
-      { label: 'General', value: 'General' },
-    ], defaultValue: 'Groceries' },
-    { name: 'uom', label: 'UOM (Unit of Measure)', type: 'select', options: [
-      { label: 'Packet (pkt)', value: 'pkt' },
-      { label: 'Bottle (bottle)', value: 'bottle' },
-      { label: 'Kilogram (kg)', value: 'kg' },
-      { label: 'Gram (gm)', value: 'gm' },
-      { label: 'Litre (ltr)', value: 'ltr' },
-      { label: 'Pieces (pcs)', value: 'pcs' },
-      { label: 'Box (box)', value: 'box' },
-    ], defaultValue: 'pkt' },
+    {
+      name: 'category',
+      label: 'Category',
+      type: 'server-select',
+      fetchOptions: async ({ page, pageSize, search }) => {
+        const params = new URLSearchParams({
+          masterType: 'ItemCategory',
+          page: String(page),
+          pageSize: String(pageSize),
+          paged: 'true',
+        });
+        if (search.trim()) params.append('search', search.trim());
+        const res = await fetch(`${getApiBaseUrl()}/masters?${params.toString()}`, {
+          headers: {
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+            ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            items: data.items || [],
+            hasMore: data.hasMore || false,
+            totalCount: data.totalCount || 0,
+          };
+        }
+        return { items: [], hasMore: false, totalCount: 0 };
+      },
+      itemLabel: (i: any) => i.name,
+      itemValue: (i: any) => i.name,
+      required: true,
+      defaultValue: 'Groceries',
+    },
+    {
+      name: 'uom',
+      label: 'UOM (Unit of Measure)',
+      type: 'server-select',
+      fetchOptions: async ({ page, pageSize, search }) => {
+        const params = new URLSearchParams({
+          masterType: 'UnitOfMeasurement',
+          page: String(page),
+          pageSize: String(pageSize),
+          paged: 'true',
+        });
+        if (search.trim()) params.append('search', search.trim());
+        const res = await fetch(`${getApiBaseUrl()}/masters?${params.toString()}`, {
+          headers: {
+            ...getAuthHeaders(),
+            'X-Tenant-Id': String(selectedTenantId),
+            ...(selectedTenantCode ? { 'X-Tenant-Code': selectedTenantCode } : {}),
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            items: data.items || [],
+            hasMore: data.hasMore || false,
+            totalCount: data.totalCount || 0,
+          };
+        }
+        return { items: [], hasMore: false, totalCount: 0 };
+      },
+      itemLabel: (i: any) => i.name,
+      itemValue: (i: any) => i.name,
+      required: true,
+      defaultValue: 'pkt',
+    },
     { name: 'format', label: 'Item Format / Type', type: 'select', options: [
       { label: 'Packed Item (Discrete packaging)', value: 'Packed' },
       { label: 'Loose Bulk (Weight / Volume sold)', value: 'Loose' },

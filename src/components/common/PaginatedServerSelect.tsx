@@ -17,8 +17,8 @@ export interface PaginatedServerSelectProps<T> {
     hasMore: boolean;
     totalCount: number;
   }>;
-  itemLabel: (item: T) => string;
-  itemValue: (item: T) => any;
+  itemLabel?: (item: T) => string;
+  itemValue?: (item: T) => any;
   itemSubtitle?: (item: T) => string;
   parentFilter?: any;
   required?: boolean;
@@ -26,6 +26,7 @@ export interface PaginatedServerSelectProps<T> {
   placeholder?: string;
   allowClear?: boolean;
   selectedDisplayLabel?: string;
+  size?: 'small' | 'medium';
 }
 
 export function PaginatedServerSelect<T extends Record<string, any>>({
@@ -33,8 +34,8 @@ export function PaginatedServerSelect<T extends Record<string, any>>({
   value,
   onChange,
   fetchOptions,
-  itemLabel,
-  itemValue,
+  itemLabel = (item: any) => item?.name || item?.label || item?.title || String(item?.id ?? item),
+  itemValue = (item: any) => item?.id ?? item?.value ?? item,
   itemSubtitle,
   parentFilter,
   required = false,
@@ -42,6 +43,7 @@ export function PaginatedServerSelect<T extends Record<string, any>>({
   placeholder,
   allowClear = true,
   selectedDisplayLabel,
+  size = 'small',
 }: PaginatedServerSelectProps<T>) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [items, setItems] = useState<T[]>([]);
@@ -53,9 +55,11 @@ export function PaginatedServerSelect<T extends Record<string, any>>({
   const [error, setError] = useState<string | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchRequestIdRef = useRef(0);
   const open = Boolean(anchorEl);
 
   const loadInitial = useCallback(async (searchTerm = search) => {
+    const requestId = ++searchRequestIdRef.current;
     setIsLoading(true);
     setError(null);
     setPage(1);
@@ -67,12 +71,18 @@ export function PaginatedServerSelect<T extends Record<string, any>>({
         search: searchTerm,
         parentFilter,
       });
-      setItems(res.items || []);
-      setHasMore(res.hasMore || false);
+      if (requestId === searchRequestIdRef.current) {
+        setItems(res.items || []);
+        setHasMore(res.hasMore || false);
+      }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load options');
+      if (requestId === searchRequestIdRef.current) {
+        setError(err?.message || 'Failed to load options');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === searchRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [fetchOptions, parentFilter, search]);
 
@@ -141,6 +151,7 @@ export function PaginatedServerSelect<T extends Record<string, any>>({
     <Box sx={{ width: '100%' }}>
       <TextField
         fullWidth
+        size={size}
         label={label + (required ? ' *' : '')}
         value={displayText}
         placeholder={placeholder || `Select ${label}...`}

@@ -3,6 +3,7 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, MenuItem, Switch, FormControlLabel
 } from '@mui/material';
+import { PaginatedServerSelect } from './PaginatedServerSelect';
 
 export interface FieldOption {
   label: string;
@@ -12,9 +13,18 @@ export interface FieldOption {
 export interface FormFieldDef {
   name: string;
   label: string;
-  type: 'text' | 'number' | 'select' | 'switch' | 'textarea' | 'date';
+  type: 'text' | 'number' | 'select' | 'server-select' | 'switch' | 'textarea' | 'date';
   placeholder?: string;
   options?: FieldOption[];
+  fetchOptions?: (params: { page: number; pageSize: number; search: string; parentFilter?: any }) => Promise<{
+    items: any[];
+    hasMore: boolean;
+    totalCount: number;
+  }>;
+  itemLabel?: (item: any) => string;
+  itemValue?: (item: any) => any;
+  itemSubtitle?: (item: any) => string;
+  parentFilter?: any;
   required?: boolean;
   defaultValue?: any;
   gridSpan?: number;
@@ -115,6 +125,24 @@ export const GenericFormModal: React.FC<GenericFormModalProps> = ({
                       </MenuItem>
                     ))}
                   </TextField>
+                );
+              }
+
+              if (field.type === 'server-select') {
+                return (
+                  <PaginatedServerSelect
+                    key={field.name}
+                    label={field.label}
+                    value={val}
+                    onChange={(selectedVal) => handleChange(field.name, selectedVal)}
+                    fetchOptions={field.fetchOptions!}
+                    itemLabel={field.itemLabel}
+                    itemValue={field.itemValue}
+                    itemSubtitle={field.itemSubtitle}
+                    parentFilter={field.parentFilter}
+                    required={field.required}
+                    size="small"
+                  />
                 );
               }
 
