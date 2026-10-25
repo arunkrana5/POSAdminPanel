@@ -34,6 +34,7 @@ import BusinessIcon from '@mui/icons-material/Business';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import CategoryIcon from '@mui/icons-material/Category';
+import AndroidIcon from '@mui/icons-material/Android';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -198,6 +199,33 @@ export const HeaderNav: React.FC = () => {
 
         {/* Right Controls */}
         <Box display="flex" alignItems="center" gap={1.2}>
+          <Button
+            variant="outlined"
+            size="small"
+            component="a"
+            href="/VillageShop.apk"
+            download="VillageShop.apk"
+            startIcon={<AndroidIcon sx={{ fontSize: 15, color: '#34D399' }} />}
+            sx={{
+              fontWeight: 700,
+              fontSize: '0.725rem',
+              py: 0.3,
+              px: 1.2,
+              borderRadius: '4px',
+              color: '#34D399',
+              borderColor: 'rgba(52, 211, 153, 0.4)',
+              bgcolor: 'rgba(16, 185, 129, 0.1)',
+              textTransform: 'none',
+              '&:hover': {
+                bgcolor: 'rgba(16, 185, 129, 0.2)',
+                borderColor: '#10B981',
+                color: '#6EE7B7',
+              },
+            }}
+          >
+            Download APK
+          </Button>
+
           <Button
             variant="contained"
             color="success"
