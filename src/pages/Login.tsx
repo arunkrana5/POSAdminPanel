@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 export const Login: React.FC = () => {
   const [tenantCode, setTenantCode] = useState('SUPERADMIN');
   const [username, setUsername] = useState('superadmin');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('12345');
   const [error, setError] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -61,7 +61,7 @@ export const Login: React.FC = () => {
                 onClick={() => {
                   setTenantCode('SUPERADMIN');
                   setUsername('superadmin');
-                  setPassword('admin123');
+                  setPassword('12345');
                 }}
                 sx={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'none' }}
               >
@@ -72,26 +72,26 @@ export const Login: React.FC = () => {
                 variant="outlined"
                 color="primary"
                 onClick={() => {
-                  setTenantCode('SHARMA_SHOP');
-                  setUsername('admin');
-                  setPassword('admin123');
+                  setTenantCode('LAXMI');
+                  setUsername('laxmi');
+                  setPassword('12345');
                 }}
                 sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
               >
-                Sharma Shop
+                Laxmi Store
               </Button>
               <Button
                 size="small"
                 variant="outlined"
                 color="primary"
                 onClick={() => {
-                  setTenantCode('GUPTA_KIRANA');
-                  setUsername('gupta_admin');
-                  setPassword('admin123');
+                  setTenantCode('NRSAAYUSHMAN');
+                  setUsername('AAYUSHMAN');
+                  setPassword('12345');
                 }}
                 sx={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'none' }}
               >
-                Gupta Kirana
+                Aayushman
               </Button>
             </Box>
           </Box>
